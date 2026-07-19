@@ -1,6 +1,7 @@
 import type {
   AccountSummary,
   CheckInCreate,
+  CheckInHistoryResponse,
   ConsentResponse,
   EnrollRequest,
   EnrollResponse,
@@ -12,6 +13,7 @@ import type {
 } from "@/types";
 import {
   accountSummarySchema,
+  checkInHistorySchema,
   consentResponseSchema,
   enrollResponseSchema,
   forecastResponseSchema,
@@ -89,6 +91,17 @@ export function sendCheckIn(
     { method: "POST", body: JSON.stringify(payload) },
     // The mobile client only needs a valid JSON response to acknowledge the queued row.
     z.unknown(),
+    token,
+  );
+}
+
+export function getCheckInHistory(
+  token: string,
+): Promise<Result<CheckInHistoryResponse>> {
+  return request<CheckInHistoryResponse>(
+    "/v1/check-ins",
+    { method: "GET" },
+    checkInHistorySchema,
     token,
   );
 }

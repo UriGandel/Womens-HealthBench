@@ -18,6 +18,7 @@ import {
   deleteWearableData as deleteRemoteWearableData,
   enroll,
   getAccount,
+  getCheckInHistory,
   getForecast,
 } from "@/services/api";
 import { authenticateDevice } from "@/services/deviceAuth";
@@ -44,6 +45,7 @@ import { syncQueuedCheckIns, syncQueuedWearables } from "@/services/sync";
 import type {
   AccountSummary,
   CheckInCreate,
+  CheckInHistoryDay,
   EnrollRequest,
   ForecastResponse,
   Result,
@@ -64,6 +66,7 @@ interface AppContextValue {
   readonly syncIssue: string | null;
   readonly forecast: ForecastResponse | null;
   readonly account: AccountSummary | null;
+  readonly history: ReadonlyArray<CheckInHistoryDay>;
   readonly isRefreshing: boolean;
   readonly isHealthSyncing: boolean;
   readonly unlockApp: () => Promise<Result<void>>;
@@ -93,6 +96,7 @@ export function AppProvider({ children }: PropsWithChildren): React.ReactElement
   const [syncIssue, setSyncIssue] = useState<string | null>(null);
   const [forecast, setForecast] = useState<ForecastResponse | null>(null);
   const [account, setAccount] = useState<AccountSummary | null>(null);
+  const [history, setHistory] = useState<ReadonlyArray<CheckInHistoryDay>>([]);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [isHealthSyncing, setIsHealthSyncing] = useState(false);
   const backgroundedAt = useRef<number | null>(null);
@@ -107,6 +111,7 @@ export function AppProvider({ children }: PropsWithChildren): React.ReactElement
     setHasCurrentConsent(null);
     setForecast(null);
     setAccount(null);
+    setHistory([]);
     setLastCheckInDate(null);
     setWearablePendingCount(0);
   }, []);
@@ -151,7 +156,10 @@ export function AppProvider({ children }: PropsWithChildren): React.ReactElement
       if (forecastResult.ok) setForecast(forecastResult.value);
       if (!forecastResult.ok && forecastResult.status === 401) {
         await resetSession();
+        return;
       }
+      const historyResult = await getCheckInHistory(token);
+      if (historyResult.ok) setHistory(historyResult.value.days);
     } finally {
       setIsRefreshing(false);
     }
@@ -386,6 +394,7 @@ export function AppProvider({ children }: PropsWithChildren): React.ReactElement
     setHasCurrentConsent(null);
     setForecast(null);
     setAccount(null);
+    setHistory([]);
     setPendingCount(0);
     setWearablePendingCount(0);
     return { ok: true, value: undefined };
@@ -404,6 +413,7 @@ export function AppProvider({ children }: PropsWithChildren): React.ReactElement
       syncIssue,
       forecast,
       account,
+      history,
       isRefreshing,
       isHealthSyncing,
       unlockApp,
@@ -427,6 +437,7 @@ export function AppProvider({ children }: PropsWithChildren): React.ReactElement
       enrollUser,
       forecast,
       hasCurrentConsent,
+      history,
       isBooting,
       isLocked,
       isOnline,

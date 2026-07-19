@@ -123,7 +123,7 @@ export default function ForecastScreen(): React.ReactElement {
       </View>
 
       <Button
-        label={isRefreshing ? "Refreshing…" : "Refresh signal"}
+        label={isRefreshing ? "Refreshing…" : "Refresh forecast"}
         variant="secondary"
         disabled={!isOnline}
         loading={isRefreshing}
