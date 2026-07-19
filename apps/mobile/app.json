@@ -1,0 +1,40 @@
+{
+  "expo": {
+    "name": "Tomorrow, Gently",
+    "slug": "tomorrow-gently",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "scheme": "tomorrowgently",
+    "userInterfaceStyle": "light",
+    "newArchEnabled": true,
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "org.womenshealthbench.tomorrowgently",
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
+      }
+    },
+    "android": {
+      "package": "org.womenshealthbench.tomorrowgently",
+      "adaptiveIcon": {
+        "backgroundColor": "#EAF2EF"
+      }
+    },
+    "plugins": [
+      "expo-router",
+      "expo-secure-store",
+      [
+        "expo-sqlite",
+        {
+          "useSQLCipher": true
+        }
+      ]
+    ],
+    "experiments": {
+      "typedRoutes": true
+    },
+    "extra": {
+      "consentVersion": "2026-07-01"
+    }
+  }
+}

@@ -1,0 +1,36 @@
+[
+  {
+    "schema_version": "1.0.0",
+    "participant_id": "synthetic-001",
+    "day_in_study": 0,
+    "period_status": "none",
+    "cycle_day": 12,
+    "sleep_hours": 7.4,
+    "sleep_quality": 3,
+    "stress": 1,
+    "activity_minutes": 46,
+    "fatigue": 1,
+    "brain_fog": 0,
+    "headache": 0,
+    "pelvic_pain": 0,
+    "mood_disruption": 1,
+    "source": "synthetic"
+  },
+  {
+    "schema_version": "1.0.0",
+    "participant_id": "synthetic-001",
+    "day_in_study": 1,
+    "period_status": "none",
+    "cycle_day": 13,
+    "sleep_hours": 6.1,
+    "sleep_quality": 2,
+    "stress": 3,
+    "activity_minutes": 20,
+    "fatigue": 3,
+    "brain_fog": 2,
+    "headache": 1,
+    "pelvic_pain": 1,
+    "mood_disruption": 3,
+    "source": "synthetic"
+  }
+]

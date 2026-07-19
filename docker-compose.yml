@@ -1,0 +1,20 @@
+services:
+  db:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_DB: healthbench
+      POSTGRES_USER: healthbench
+      POSTGRES_PASSWORD: healthbench
+    ports:
+      - "5432:5432"
+    volumes:
+      - healthbench-postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U healthbench"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  healthbench-postgres:
+

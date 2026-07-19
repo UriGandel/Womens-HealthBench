@@ -1,0 +1,95 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://womens-healthbench.example/schemas/research-checkin.schema.json",
+  "title": "Pseudonymous longitudinal symptom check-in",
+  "description": "Public interchange schema. It intentionally excludes direct identifiers, absolute dates, free text, device identifiers, location, and network identifiers.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "participant_id",
+    "day_in_study",
+    "period_status",
+    "sleep_hours",
+    "sleep_quality",
+    "stress",
+    "fatigue",
+    "brain_fog",
+    "headache",
+    "pelvic_pain",
+    "mood_disruption",
+    "source"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "1.0.0"
+    },
+    "participant_id": {
+      "type": "string",
+      "minLength": 8,
+      "maxLength": 64,
+      "pattern": "^[A-Za-z0-9_-]+$",
+      "description": "Random research identifier or an explicitly synthetic identifier; never an account ID."
+    },
+    "day_in_study": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Relative day offset; never an absolute calendar date."
+    },
+    "period_status": {
+      "enum": ["none", "spotting", "flow"]
+    },
+    "cycle_day": {
+      "type": ["integer", "null"],
+      "minimum": 1,
+      "maximum": 120
+    },
+    "sleep_hours": {
+      "type": ["number", "null"],
+      "minimum": 0,
+      "maximum": 24
+    },
+    "sleep_quality": {
+      "$ref": "#/$defs/nullableRating"
+    },
+    "stress": {
+      "$ref": "#/$defs/rating"
+    },
+    "activity_minutes": {
+      "type": ["integer", "null"],
+      "minimum": 0,
+      "maximum": 1440,
+      "description": "Optional benchmark input; not collected by the v1 mobile check-in."
+    },
+    "fatigue": {
+      "$ref": "#/$defs/rating"
+    },
+    "brain_fog": {
+      "$ref": "#/$defs/rating"
+    },
+    "headache": {
+      "$ref": "#/$defs/rating"
+    },
+    "pelvic_pain": {
+      "$ref": "#/$defs/rating"
+    },
+    "mood_disruption": {
+      "$ref": "#/$defs/rating"
+    },
+    "source": {
+      "enum": ["synthetic", "private-alpha", "mcphases-local"]
+    }
+  },
+  "$defs": {
+    "rating": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 4
+    },
+    "nullableRating": {
+      "type": ["integer", "null"],
+      "minimum": 0,
+      "maximum": 4
+    }
+  }
+}
