@@ -322,15 +322,4 @@ Raw mcPHASES records, participant feature tables, participant split identities, 
 - The models do not establish clinical utility, individual reliability, subgroup fairness, or safety.
 - The v0.1 and v0.2 confidence intervals overlap; the observed score difference is not proof of a true performance difference.
 
-## Licence and citation
-
-Repository source code is released under the repository's MIT licence unless a file states otherwise.
-
-The repository licence does not relicense mcPHASES. Use of mcPHASES and artifacts derived from it remains subject to the applicable PhysioNet access and data-use conditions reviewed by the user or deploying organization.
-
-When using mcPHASES, cite:
-
-> Lin, B., Li, J. Y., Kalani, K., Truong, K., & Mariakakis, A. (2025). *mcPHASES: A Dataset of Physiological, Hormonal, and Self-reported Events and Symptoms for Menstrual Health Tracking with Wearables* (version 1.0.0). PhysioNet. <https://doi.org/10.13026/zx6a-2c81>
-
-See the [mcPHASES project page](https://physionet.org/content/mcphases/1.0.0/) for the current access terms and citation instructions.
 
