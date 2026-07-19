@@ -16,6 +16,7 @@ import { colors, radius, type } from "@/theme";
 export default function PrivacyScreen(): React.ReactElement {
   const {
     account,
+    forecast,
     pendingCount,
     isOnline,
     setResearchConsent,
@@ -140,6 +141,7 @@ export default function PrivacyScreen(): React.ReactElement {
         </Text>
         <Text style={styles.consentVersion}>
           CONSENT VERSION {account?.consent_version ?? "—"}
+          {forecast?.model_version ? ` · MODEL ${forecast.model_version}` : ""}
         </Text>
       </View>
 

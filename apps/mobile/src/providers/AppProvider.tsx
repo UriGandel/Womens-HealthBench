@@ -45,6 +45,7 @@ interface AppContextValue {
   readonly forecast: ForecastResponse | null;
   readonly account: AccountSummary | null;
   readonly isRefreshing: boolean;
+  readonly lastCheckInDate: string | null;
   readonly enrollUser: (payload: EnrollRequest) => Promise<Result<void>>;
   readonly submitCheckIn: (payload: CheckInCreate) => Promise<Result<void>>;
   readonly refresh: () => Promise<void>;
@@ -67,6 +68,7 @@ export function AppProvider({ children }: PropsWithChildren): React.ReactElement
   const [forecast, setForecast] = useState<ForecastResponse | null>(null);
   const [account, setAccount] = useState<AccountSummary | null>(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [lastCheckInDate, setLastCheckInDate] = useState<string | null>(null);
   const router = useRouter();
   const segments = useSegments();
 
@@ -156,6 +158,7 @@ export function AppProvider({ children }: PropsWithChildren): React.ReactElement
       try {
         await enqueueCheckIn(payload);
         setPendingCount(await queueCount());
+        setLastCheckInDate(payload.observed_date);
         if (token && isOnline) await refresh();
         return { ok: true, value: undefined };
       } catch {
@@ -207,6 +210,7 @@ export function AppProvider({ children }: PropsWithChildren): React.ReactElement
       forecast,
       account,
       isRefreshing,
+      lastCheckInDate,
       enrollUser,
       submitCheckIn,
       refresh,
@@ -221,6 +225,7 @@ export function AppProvider({ children }: PropsWithChildren): React.ReactElement
       isBooting,
       isOnline,
       isRefreshing,
+      lastCheckInDate,
       pendingCount,
       syncIssue,
       refresh,
