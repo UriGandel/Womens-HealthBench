@@ -7,7 +7,7 @@ const RATINGS: ReadonlyArray<Rating> = [0, 1, 2, 3, 4];
 
 interface RatingScaleProps {
   readonly label: string;
-  readonly value: Rating;
+  readonly value: Rating | null;
   readonly onChange: (value: Rating) => void;
   readonly lowLabel?: string;
   readonly highLabel?: string;
@@ -89,8 +89,8 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
   },
   hint: {
-    color: colors.muted,
+    color: colors.slate,
     fontFamily: type.body,
-    fontSize: 11,
+    fontSize: 13,
   },
 });
