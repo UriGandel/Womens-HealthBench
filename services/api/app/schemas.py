@@ -65,6 +65,27 @@ class CheckInResponse(BaseModel):
     queued_at: datetime
 
 
+# Read model for the mobile "last 14 days" history strip. Intentionally
+# excludes ids and timestamps — the client only needs per-day observations.
+class CheckInHistoryDay(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    observed_date: date
+    period_status: PeriodStatus
+    sleep_hours: float
+    sleep_quality: Rating
+    stress: Rating
+    fatigue: Rating
+    brain_fog: Rating
+    headache: Rating
+    pelvic_pain: Rating
+    mood_disruption: Rating
+
+
+class CheckInHistoryResponse(BaseModel):
+    days: list[CheckInHistoryDay]
+
+
 class ForecastFactor(BaseModel):
     label: str
     direction: Literal["higher", "lower", "context"]

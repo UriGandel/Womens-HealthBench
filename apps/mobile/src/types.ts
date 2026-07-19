@@ -36,6 +36,23 @@ export interface CheckInCreate {
   readonly mood_disruption: Rating;
 }
 
+export interface CheckInHistoryDay {
+  readonly observed_date: string;
+  readonly period_status: PeriodStatus;
+  readonly sleep_hours: number;
+  readonly sleep_quality: Rating;
+  readonly stress: Rating;
+  readonly fatigue: Rating;
+  readonly brain_fog: Rating;
+  readonly headache: Rating;
+  readonly pelvic_pain: Rating;
+  readonly mood_disruption: Rating;
+}
+
+export interface CheckInHistoryResponse {
+  readonly days: ReadonlyArray<CheckInHistoryDay>;
+}
+
 export interface ForecastFactor {
   readonly label: string;
   readonly direction: "higher" | "lower" | "context";

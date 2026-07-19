@@ -1,14 +1,29 @@
-# Tomorrow, Gently — private symptom forecasting
+# Women's Health Bench (WHB)
 
-Tomorrow, Gently is a private, internal-distribution mobile alpha for
-forecasting whether tomorrow may be a higher-symptom day. It is an experimental
-wellness tool, not a diagnostic product.
+**Open benchmark for menstrual phase prediction using wearable physiological data.**
+
+Women's Health Bench (WHB) is an open, reproducible benchmark designed to predict a participant's current menstrual phase using only wearable physiological data collected over the previous seven days. The project provides a standardized evaluation framework for researchers building AI models for women's hormonal health.
+
+## Key Features
+
+-  Predicts four menstrual phases:
+  - Menstrual
+  - Follicular
+  - Fertility
+  - Luteal
+-  Uses only the previous seven days of wearable physiological signals
+-  Prevents temporal data leakage by excluding current-day and future information
+-  Generates **161 engineered features** through rolling-window feature engineering
+-  Fully reproducible preprocessing and feature engineering pipeline
+-  Open-source AI infrastructure for women's hormonal health research
+
+> **Disclaimer:** Women's Health Bench is intended for research and benchmarking purposes only. It is **not** a medical device and should not be used for diagnosis, treatment, or clinical decision-making.
 
 The repository contains:
 
 - `apps/mobile`: native Expo React Native application for enrollment, consent,
   daily check-ins, read-only Apple Health/Health Connect imports, forecasts,
-  and privacy controls.
+  a 14-day symptom history strip, and privacy controls.
 - `services/api`: FastAPI service with PostgreSQL/SQLite support, pseudonymous
   research storage, and an administrator-only export command.
 - `benchmark`: reproducible synthetic benchmark plus an adapter contract for
@@ -35,6 +50,10 @@ DATABASE_URL=postgresql+psycopg://healthbench:healthbench@localhost:5432/healthb
   .venv/bin/uvicorn app.main:app --reload
 ```
 
+Plain `postgresql://` (or legacy `postgres://`) URLs, as issued by hosted
+providers such as Render, are automatically rewritten to use the installed
+psycopg 3 driver — no manual `+psycopg` suffix is required.
+
 The interactive API documentation is at `http://127.0.0.1:8000/docs`.
 
 ### Mobile
@@ -42,11 +61,12 @@ The interactive API documentation is at `http://127.0.0.1:8000/docs`.
 ```bash
 cd apps/mobile
 npm install
-EXPO_PUBLIC_API_URL=http://127.0.0.1:8000 npm start
+npm start
 ```
 
-Android emulators reach a host API through `http://10.0.2.2:8000`; set
-`EXPO_PUBLIC_API_URL` accordingly.
+`EXPO_PUBLIC_API_URL` defaults to `http://127.0.0.1:8000`; set it only when
+the API runs elsewhere. Android emulators reach a host API through
+`http://10.0.2.2:8000`.
 
 The encrypted offline queues and local HealthKit/Health Connect module require
 an Expo development build rather than Expo Go. Device authentication also
@@ -62,7 +82,7 @@ npm run android
 For a browser-only preview of the non-native flows:
 
 ```bash
-EXPO_PUBLIC_API_URL=http://127.0.0.1:8000 npm run web
+npm run web
 ```
 
 The browser preview skips device authentication, disables Apple Health and
@@ -114,6 +134,27 @@ The Cycle screen presents the v0.2 signal and calendar-history rules together
 under the same estimated-phases experience: the model labels its supported
 target day, while rules retain the future projection. “Fertility” is only a
 source-dataset class label, not a personal fertility claim.
+
+## Deployment
+
+The API could be run on Render and the browser preview on Vercel:
+
+- **Render (API)**: start command
+  `uvicorn app.main:app --host 0.0.0.0 --port $PORT` from `services/api`, with
+  `DATABASE_URL` pointing at a Render PostgreSQL instance (the plain
+  `postgresql://` URL Render provides works as-is).
+- **Vercel (web preview)**: serves the `apps/mobile` browser preview, with
+  `EXPO_PUBLIC_API_URL` set to the deployed API origin. The preview keeps the
+  same limitations as the local `npm run web` preview described above.
+
+Both services are configured in their dashboards; there is no `render.yaml` or
+`vercel.json` in the repository.
+
+Startup only creates missing tables; it never alters existing ones. After
+changing a model on an existing database, apply the column change manually (or
+reset the database — alpha data is disposable).
+
+See [docs/deployment.md](docs/deployment.md) before inviting real testers.
 
 ## Safety boundary
 

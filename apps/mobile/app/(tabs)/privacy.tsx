@@ -8,6 +8,7 @@ import {
 } from "react-native";
 
 import { Button } from "@/components/Button";
+import { HistoryStrip } from "@/components/HistoryStrip";
 import { Notice } from "@/components/Notice";
 import { Screen } from "@/components/Screen";
 import { useApp } from "@/providers/AppProvider";
@@ -17,6 +18,7 @@ export default function PrivacyScreen(): React.ReactElement {
   const {
     account,
     forecast,
+    history,
     pendingCount,
     isOnline,
     cyclePendingCount,
@@ -118,6 +120,13 @@ export default function PrivacyScreen(): React.ReactElement {
           variant="secondary"
           onPress={() => router.push("/health-data")}
         />
+      </View>
+
+      {/* Button-free by design: this tab is a quiet record, so history is a
+          glanceable strip rather than a navigable screen with controls. */}
+      <View style={styles.card}>
+        <Text style={styles.cardLabel}>LAST 14 DAYS</Text>
+        <HistoryStrip days={history} />
       </View>
 
       <View style={styles.card}>

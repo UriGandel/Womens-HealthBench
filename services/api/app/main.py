@@ -51,6 +51,8 @@ from app.schemas import (
     BroadPhasePredictionRequest,
     BroadPhasePredictionResponse,
     CheckInCreate,
+    CheckInHistoryDay,
+    CheckInHistoryResponse,
     CheckInResponse,
     ConsentResponse,
     ConsentUpdate,
@@ -936,6 +938,28 @@ def create_app() -> FastAPI:
         return WearableDeleteResponse(
             deleted_days=deleted_days,
             message="Imported wearable data was disconnected and deleted",
+        )
+
+    # Backs the read-only history strip in the mobile "Your data" tab. Returns
+    # the newest 14 check-ins by observed_date; the client maps them onto its
+    # own local 14-day window, so no server-side timezone assumptions here.
+    @api.get(
+        "/v1/check-ins",
+        response_model=CheckInHistoryResponse,
+        tags=["check-ins"],
+    )
+    def list_checkins(
+        session: Annotated[Session, Depends(get_session)],
+        account: Annotated[Account, Depends(require_account)],
+    ) -> CheckInHistoryResponse:
+        rows = session.scalars(
+            select(CheckIn)
+            .where(CheckIn.account_id == account.id)
+            .order_by(CheckIn.observed_date.desc())
+            .limit(14)
+        ).all()
+        return CheckInHistoryResponse(
+            days=[CheckInHistoryDay.model_validate(row) for row in rows]
         )
 
     @api.get("/v1/account", response_model=AccountSummary, tags=["privacy"])

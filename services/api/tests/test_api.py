@@ -461,3 +461,35 @@ def test_account_deletion_cascades_all_identity_health_and_research_rows(
             ResearchWearableDay,
         ):
             assert session.scalar(select(func.count()).select_from(model)) == 0
+
+
+def test_checkin_history_returns_newest_days_and_requires_auth(
+    client: TestClient, enroll
+) -> None:
+    token = enroll()
+    assert client.get("/v1/check-ins").status_code == 401
+
+    empty = client.get("/v1/check-ins", headers=auth(token))
+    assert empty.status_code == 200
+    assert empty.json() == {"days": []}
+
+    today = date.today()
+    for offset in range(16):
+        payload = checkin_payload(
+            f"history-{offset:02d}", today - timedelta(days=offset), fatigue=offset % 5
+        )
+        assert client.post("/v1/check-ins", json=payload, headers=auth(token)).status_code == 201
+
+    response = client.get("/v1/check-ins", headers=auth(token))
+    assert response.status_code == 200
+    days = response.json()["days"]
+    # Capped at the newest 14 of the 16 submitted, newest first.
+    assert len(days) == 14
+    assert days[0]["observed_date"] == today.isoformat()
+    assert days[-1]["observed_date"] == (today - timedelta(days=13)).isoformat()
+    assert {"id", "created_at"}.isdisjoint(days[0])
+
+    # History is scoped to the requesting account.
+    other = enroll()
+    isolated = client.get("/v1/check-ins", headers=auth(other))
+    assert isolated.json() == {"days": []}

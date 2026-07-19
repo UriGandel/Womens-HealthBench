@@ -23,6 +23,23 @@ export const checkInSchema = z.object({
   mood_disruption: ratingSchema,
 });
 
+export const checkInHistorySchema = z.object({
+  days: z.array(
+    z.object({
+      observed_date: z.iso.date(),
+      period_status: z.enum(["none", "spotting", "flow"]),
+      sleep_hours: z.number().min(0).max(24),
+      sleep_quality: ratingSchema,
+      stress: ratingSchema,
+      fatigue: ratingSchema,
+      brain_fog: ratingSchema,
+      headache: ratingSchema,
+      pelvic_pain: ratingSchema,
+      mood_disruption: ratingSchema,
+    }),
+  ),
+});
+
 export const enrollResponseSchema = z.object({
   access_token: z.string().min(1),
   consent_version: z.string().min(1),

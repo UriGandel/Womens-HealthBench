@@ -85,8 +85,7 @@ test("offers Apple Health sync after consent and enrollment", async () => {
   const screen = await render(<EnrollScreen />);
 
   await fireEvent.press(screen.getByText("I agree"));
-  await fireEvent.press(await screen.findByText("Yes"));
-  await fireEvent.press(screen.getByText("Enter"));
+  await fireEvent.press(await screen.findByText("I agree"));
 
   await waitFor(() => expect(enrollUser).toHaveBeenCalledTimes(1));
   expect(await screen.findByText("Sync with Apple Health")).toBeTruthy();
@@ -104,8 +103,7 @@ test("allows health sync to be skipped", async () => {
   const screen = await render(<EnrollScreen />);
 
   await fireEvent.press(screen.getByText("I agree"));
-  await fireEvent.press(await screen.findByText("Yes"));
-  await fireEvent.press(screen.getByText("Enter"));
+  await fireEvent.press(await screen.findByText("I agree"));
 
   await screen.findByText("Skip for now");
   await fireEvent.press(screen.getByText("Skip for now"));

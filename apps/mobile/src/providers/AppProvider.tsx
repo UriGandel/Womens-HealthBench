@@ -21,6 +21,7 @@ import {
   enroll,
   enableCycleTracking as enableRemoteCycleTracking,
   getAccount,
+  getCheckInHistory,
   getCycleTracking,
   getForecast,
   getPhaseForecast,
@@ -61,6 +62,7 @@ import {
 import type {
   AccountSummary,
   CheckInCreate,
+  CheckInHistoryDay,
   CycleStatus,
   CycleTrackingSummary,
   EnrollRequest,
@@ -90,6 +92,7 @@ interface AppContextValue {
   readonly phaseForecast: PhaseForecastResponse | null;
   readonly account: AccountSummary | null;
   readonly cycleSummary: CycleTrackingSummary | null;
+  readonly history: ReadonlyArray<CheckInHistoryDay>;
   readonly isRefreshing: boolean;
   readonly isHealthSyncing: boolean;
   readonly unlockApp: () => Promise<Result<void>>;
@@ -136,6 +139,7 @@ export function AppProvider({ children }: PropsWithChildren): React.ReactElement
   const [phaseForecast, setPhaseForecast] = useState<PhaseForecastResponse | null>(null);
   const [account, setAccount] = useState<AccountSummary | null>(null);
   const [cycleSummary, setCycleSummary] = useState<CycleTrackingSummary | null>(null);
+  const [history, setHistory] = useState<ReadonlyArray<CheckInHistoryDay>>([]);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [isHealthSyncing, setIsHealthSyncing] = useState(false);
   const [isFinishingEnrollment, setIsFinishingEnrollment] = useState(false);
@@ -153,6 +157,7 @@ export function AppProvider({ children }: PropsWithChildren): React.ReactElement
     setForecast(null);
     setPhaseForecast(null);
     setAccount(null);
+    setHistory([]);
     setLastCheckInDate(null);
     setWearablePendingCount(0);
     setCyclePendingCount(0);
@@ -224,7 +229,10 @@ export function AppProvider({ children }: PropsWithChildren): React.ReactElement
       if (phaseResult.ok) setPhaseForecast(phaseResult.value);
       if (!phaseResult.ok && phaseResult.status === 401) {
         await resetSession();
+        return;
       }
+      const historyResult = await getCheckInHistory(token);
+      if (historyResult.ok) setHistory(historyResult.value.days);
     } finally {
       setIsRefreshing(false);
     }
@@ -616,6 +624,7 @@ export function AppProvider({ children }: PropsWithChildren): React.ReactElement
     setForecast(null);
     setPhaseForecast(null);
     setAccount(null);
+    setHistory([]);
     setPendingCount(0);
     setWearablePendingCount(0);
     setCyclePendingCount(0);
@@ -641,6 +650,7 @@ export function AppProvider({ children }: PropsWithChildren): React.ReactElement
       phaseForecast,
       account,
       cycleSummary,
+      history,
       isRefreshing,
       isHealthSyncing,
       unlockApp,
@@ -677,6 +687,7 @@ export function AppProvider({ children }: PropsWithChildren): React.ReactElement
       forecast,
       phaseForecast,
       hasCurrentConsent,
+      history,
       isBooting,
       isLocked,
       isOnline,
