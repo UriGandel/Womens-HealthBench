@@ -5,6 +5,7 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 Rating = Literal[0, 1, 2, 3, 4]
 PeriodStatus = Literal["none", "spotting", "flow"]
+CycleStatus = Literal["spotting", "flow"]
 
 
 class EnrollRequest(BaseModel):
@@ -93,6 +94,8 @@ class AccountSummary(BaseModel):
     wearable_platform: Literal["apple_health", "health_connect"] | None = None
     wearable_day_count: int
     wearable_last_synced_at: datetime | None = None
+    cycle_tracking_enabled: bool
+    cycle_day_count: int
 
 
 class WearableDailyRecord(BaseModel):
@@ -147,6 +150,69 @@ class WearableSyncResponse(BaseModel):
 
 
 class WearableDeleteResponse(BaseModel):
+    deleted_days: int
+    message: str
+
+
+class CycleTrackingEnableRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    acknowledged_sensitive_data: bool
+    local_today: date
+
+    @model_validator(mode="after")
+    def acknowledgement_is_required(self) -> "CycleTrackingEnableRequest":
+        if not self.acknowledged_sensitive_data:
+            raise ValueError("cycle tracking requires an explicit acknowledgement")
+        return self
+
+
+class CycleDayRecord(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    observed_date: date
+    period_status: CycleStatus | None
+
+
+class CycleSyncRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    sync_id: str = Field(min_length=8, max_length=64)
+    local_today: date
+    records: list[CycleDayRecord] = Field(min_length=1, max_length=120)
+
+    @model_validator(mode="after")
+    def dates_are_unique(self) -> "CycleSyncRequest":
+        dates = [record.observed_date for record in self.records]
+        if len(dates) != len(set(dates)):
+            raise ValueError("cycle records must contain unique observed dates")
+        return self
+
+
+class CycleSyncResponse(BaseModel):
+    accepted_days: int
+    deleted_days: int
+    duplicate: bool
+
+
+class CyclePattern(BaseModel):
+    label: str
+    direction: Literal["higher", "lower"]
+    detail: str
+
+
+class CycleTrackingSummary(BaseModel):
+    enabled: bool
+    days: list[CycleDayRecord] = Field(default_factory=list)
+    current_cycle_day: int | None = None
+    cycle_started_on: date | None = None
+    observed_cycle_length_days: float | None = None
+    cycle_start_count: int = 0
+    pattern_status: Literal["ready", "insufficient_data"] = "insufficient_data"
+    patterns: list[CyclePattern] = Field(default_factory=list)
+
+
+class CycleDeleteResponse(BaseModel):
     deleted_days: int
     message: str
 

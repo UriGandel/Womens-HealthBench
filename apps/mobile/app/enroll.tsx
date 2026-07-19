@@ -1,14 +1,23 @@
+import { Ionicons } from "@expo/vector-icons";
 import { useState } from "react";
-import { Platform, Pressable, StyleSheet, Text, View } from "react-native";
+import {
+  Platform,
+  Pressable,
+  StyleSheet,
+  Text,
+  useWindowDimensions,
+  View,
+} from "react-native";
 
 import { Button } from "@/components/Button";
 import { Notice } from "@/components/Notice";
 import { Screen } from "@/components/Screen";
 import { useApp } from "@/providers/AppProvider";
+import { getHealthAvailability } from "@/services/healthData";
 import { colors, radius, type } from "@/theme";
 
 const CONSENT_VERSION = "2026-07-19-health-v1";
-const STEPS = ["Disclaimers", "Consent"] as const;
+const STEPS = ["Disclaimers", "Consent", "Health sync"] as const;
 
 const DISCLAIMERS: ReadonlyArray<{
   readonly title: string;
@@ -26,7 +35,7 @@ const DISCLAIMERS: ReadonlyArray<{
   {
     title: "Your data",
     detail:
-      "Check-ins are stored encrypted to run the app and build forecasts. No free text, location, contacts, or ad identifiers.",
+      "Check-ins are stored encrypted to run the app and build forecasts. Optional cycle history is enabled separately. No free text, location, contacts, or ad identifiers.",
   },
 ];
 
@@ -89,10 +98,23 @@ function StepMeter({ step }: { readonly step: number }): React.ReactElement {
 }
 
 export default function EnrollScreen(): React.ReactElement {
-  const { enrollUser } = useApp();
+  const {
+    completeEnrollment,
+    connectHealth,
+    enrollUser,
+    isHealthSyncing,
+  } = useApp();
+  const { width } = useWindowDimensions();
+  const useNarrowFooter = width < 360;
+  const healthAvailability = getHealthAvailability();
+  const healthName =
+    healthAvailability.platform === "apple_health"
+      ? "Apple Health"
+      : "Health Connect";
   const [step, setStep] = useState(0);
   const [research, setResearch] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [healthConnected, setHealthConnected] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const goNext = (): void => {
@@ -118,8 +140,26 @@ export default function EnrollScreen(): React.ReactElement {
       research_consent: true,
       consent_version: CONSENT_VERSION,
     });
-    if (!result.ok) setError(result.message);
+    if (result.ok) {
+      setStep(2);
+    } else {
+      setError(result.message);
+    }
     setLoading(false);
+  };
+
+  const connect = async (): Promise<void> => {
+    setError(null);
+    const result = await connectHealth();
+    if (result.ok) {
+      setHealthConnected(true);
+    } else {
+      setError(result.message);
+    }
+  };
+
+  const finish = (): void => {
+    completeEnrollment();
   };
 
   const footer = (
@@ -127,11 +167,21 @@ export default function EnrollScreen(): React.ReactElement {
       {error ? <Notice text={error} tone="warning" /> : null}
       <View style={styles.footerButtons}>
         {step === 1 ? (
-          <View style={styles.footerButton}>
+          <View
+            style={[
+              styles.footerButton,
+              useNarrowFooter && styles.narrowBackButton,
+            ]}
+          >
             <Button label="Back" variant="secondary" onPress={goBack} disabled={loading} />
           </View>
         ) : null}
-        <View style={styles.footerButton}>
+        <View
+          style={[
+            styles.footerButton,
+            step === 1 && useNarrowFooter && styles.narrowPrimaryButton,
+          ]}
+        >
           {step === 0 ? <Button label="I agree" onPress={goNext} /> : null}
           {step === 1 ? (
             <Button
@@ -140,7 +190,32 @@ export default function EnrollScreen(): React.ReactElement {
               loading={loading}
             />
           ) : null}
+          {step === 2 && healthConnected ? (
+            <Button label="Continue to my forecast" onPress={finish} />
+          ) : null}
+          {step === 2 && !healthConnected && !healthAvailability.available ? (
+            <Button label="Continue without syncing" onPress={finish} />
+          ) : null}
         </View>
+        {step === 2 && !healthConnected && healthAvailability.available ? (
+          <>
+            <View style={styles.footerButton}>
+              <Button
+                label="Skip for now"
+                variant="secondary"
+                onPress={finish}
+                disabled={isHealthSyncing}
+              />
+            </View>
+            <View style={styles.footerButton}>
+              <Button
+                label={`Connect ${healthName}`}
+                onPress={() => void connect()}
+                loading={isHealthSyncing}
+              />
+            </View>
+          </>
+        ) : null}
       </View>
     </>
   );
@@ -153,6 +228,10 @@ export default function EnrollScreen(): React.ReactElement {
     {
       title: "Research consent",
       subtitle: "Participation is required for this private alpha.",
+    },
+    {
+      title: "Make your forecast more personal.",
+      subtitle: `Optionally sync daily signals from ${healthName}.`,
     },
   ][step];
 
@@ -195,12 +274,76 @@ export default function EnrollScreen(): React.ReactElement {
             onChange={setResearch}
           />
           <Text style={styles.finePrint}>
-            Records are pseudonymous, not anonymous. Imported health data is retained as daily summaries until you disconnect it or delete your account. We never import raw samples, routes, location, device IDs, source-app IDs, or reproductive and clinical records.
+            Records are pseudonymous, not anonymous. Imported health data is retained as daily summaries until you disconnect it or delete your account. We never import raw samples, routes, location, device IDs, source-app IDs, or reproductive and clinical records. Any cycle history is entered manually and enabled separately.
           </Text>
           <Text style={styles.consentVersion}>
             By continuing, you accept consent version {CONSENT_VERSION}.
           </Text>
         </View>
+      ) : null}
+
+      {step === 2 ? (
+        <>
+          <View style={styles.healthCard}>
+            <View style={styles.healthIcon}>
+              <Ionicons
+                name={
+                  healthAvailability.platform === "apple_health"
+                    ? "heart"
+                    : "fitness"
+                }
+                size={30}
+                color={colors.mineralDark}
+              />
+            </View>
+            <View style={styles.healthCopy}>
+              <Text style={styles.healthTitle}>
+                {healthConnected
+                  ? `${healthName} is connected`
+                  : `Sync with ${healthName}`}
+              </Text>
+              <Text style={styles.healthDetail}>
+                {healthConnected
+                  ? "Your available daily summaries have been securely imported."
+                  : "Add sleep, steps, activity, and heart-health trends to help improve your daily signal."}
+              </Text>
+            </View>
+          </View>
+
+          {!healthAvailability.available ? (
+            <Notice
+              tone="warning"
+              text={
+                healthAvailability.needsInstallOrUpdate
+                  ? "Install or update Health Connect to sync later from Your data."
+                  : Platform.OS === "web"
+                    ? "Health sync is only available in the iOS or Android app. You can continue with the browser preview."
+                    : "Health sync is unavailable on this device or build. You can connect later from Your data."
+              }
+            />
+          ) : null}
+
+          <View style={styles.healthDetailsCard}>
+            <View style={styles.healthDetailRow}>
+              <Ionicons name="calendar-outline" size={19} color={colors.mineral} />
+              <Text style={styles.healthDetailText}>
+                Imports up to 31 days of daily summaries
+              </Text>
+            </View>
+            <View style={styles.healthDetailRow}>
+              <Ionicons name="eye-off-outline" size={19} color={colors.mineral} />
+              <Text style={styles.healthDetailText}>
+                Never imports raw samples, routes, or device identifiers
+              </Text>
+            </View>
+            <View style={styles.healthDetailRow}>
+              <Ionicons name="shield-checkmark-outline" size={19} color={colors.mineral} />
+              <Text style={styles.healthDetailText}>
+                Read-only, optional, and removable at any time
+              </Text>
+            </View>
+          </View>
+        </>
       ) : null}
     </Screen>
   );
@@ -275,6 +418,61 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "#E9D29F",
   },
+  healthCard: {
+    backgroundColor: colors.white,
+    borderRadius: radius.large,
+    borderWidth: 1,
+    borderColor: colors.line,
+    padding: 20,
+    gap: 16,
+    alignItems: "center",
+  },
+  healthIcon: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: colors.mineralSoft,
+  },
+  healthCopy: {
+    alignItems: "center",
+    gap: 7,
+  },
+  healthTitle: {
+    color: colors.ink,
+    fontFamily: type.display,
+    fontSize: 23,
+    lineHeight: 29,
+    textAlign: "center",
+  },
+  healthDetail: {
+    color: colors.slate,
+    fontFamily: type.body,
+    fontSize: 14,
+    lineHeight: 21,
+    textAlign: "center",
+  },
+  healthDetailsCard: {
+    backgroundColor: colors.paper,
+    borderRadius: radius.large,
+    borderWidth: 1,
+    borderColor: colors.line,
+    padding: 18,
+    gap: 15,
+  },
+  healthDetailRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+  },
+  healthDetailText: {
+    flex: 1,
+    color: colors.slate,
+    fontFamily: type.body,
+    fontSize: 13,
+    lineHeight: 19,
+  },
   required: {
     color: colors.plum,
     fontFamily: type.mono,
@@ -334,4 +532,6 @@ const styles = StyleSheet.create({
   },
   footerButtons: { flexDirection: "row", gap: 10 },
   footerButton: { flex: 1 },
+  narrowBackButton: { flex: 0.7 },
+  narrowPrimaryButton: { flex: 1.3 },
 });

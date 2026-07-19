@@ -75,6 +75,8 @@ beforeEach(() => {
       wearable_platform: "apple_health",
       wearable_day_count: 3,
       wearable_last_synced_at: "2026-07-19T12:00:00Z",
+      cycle_tracking_enabled: false,
+      cycle_day_count: 0,
     },
     connectHealth: jest.fn(),
     disconnectHealth,

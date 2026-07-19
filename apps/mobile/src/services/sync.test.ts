@@ -1,23 +1,30 @@
 import { beforeEach, expect, jest, test } from "@jest/globals";
 
-import { sendWearableDays } from "@/services/api";
+import { sendCycleDays, sendWearableDays } from "@/services/api";
 import {
+  markCycleSyncComplete,
+  markCycleSyncFailed,
   markWearableSyncComplete,
   markWearableSyncFailed,
   queuedWearableSyncs,
+  queuedCycleSyncs,
 } from "@/services/storage";
-import { syncQueuedWearables } from "@/services/sync";
+import { syncQueuedCycleDays, syncQueuedWearables } from "@/services/sync";
 
 jest.mock("@/services/api", () => ({
   sendCheckIn: jest.fn(),
+  sendCycleDays: jest.fn(),
   sendWearableDays: jest.fn(),
 }));
 jest.mock("@/services/storage", () => ({
+  markCycleSyncComplete: jest.fn(),
+  markCycleSyncFailed: jest.fn(),
   markCheckInFailed: jest.fn(),
   markCheckInSynced: jest.fn(),
   markWearableSyncComplete: jest.fn(),
   markWearableSyncFailed: jest.fn(),
   queuedCheckIns: jest.fn(),
+  queuedCycleSyncs: jest.fn(),
   queuedWearableSyncs: jest.fn(),
 }));
 
@@ -37,6 +44,17 @@ const batch = {
       respiratory_rate_bpm: null,
       oxygen_saturation_pct: null,
       peripheral_temperature_delta_c: null,
+    },
+  ],
+};
+
+const cycleBatch = {
+  sync_id: "cycle-sync-uuid",
+  local_today: "2026-07-19",
+  records: [
+    {
+      observed_date: "2026-07-19",
+      period_status: "flow" as const,
     },
   ],
 };
@@ -84,4 +102,42 @@ test("removes a successfully uploaded wearable batch", async () => {
     remaining: 0,
   });
   expect(markWearableSyncComplete).toHaveBeenCalledWith(batch.sync_id);
+});
+
+test("retains an offline cycle edit without blocking other queues", async () => {
+  jest.mocked(queuedCycleSyncs)
+    .mockResolvedValueOnce([cycleBatch])
+    .mockResolvedValueOnce([cycleBatch]);
+  jest.mocked(sendCycleDays).mockResolvedValue({
+    ok: false,
+    message: "Network unavailable",
+  });
+
+  await expect(syncQueuedCycleDays("token")).resolves.toEqual({
+    synced: 0,
+    remaining: 1,
+  });
+  expect(markCycleSyncFailed).toHaveBeenCalledWith(
+    cycleBatch.sync_id,
+    "Network unavailable",
+  );
+  expect(markCycleSyncComplete).not.toHaveBeenCalled();
+});
+
+test("drops a permanently rejected cycle edit and reports it separately", async () => {
+  jest.mocked(queuedCycleSyncs)
+    .mockResolvedValueOnce([cycleBatch])
+    .mockResolvedValueOnce([]);
+  jest.mocked(sendCycleDays).mockResolvedValue({
+    ok: false,
+    message: "Cycle date cannot be in the future",
+    status: 422,
+  });
+
+  await expect(syncQueuedCycleDays("token")).resolves.toEqual({
+    synced: 0,
+    remaining: 0,
+    rejected: "A cycle-history edit was rejected: Cycle date cannot be in the future",
+  });
+  expect(markCycleSyncComplete).toHaveBeenCalledWith(cycleBatch.sync_id);
 });

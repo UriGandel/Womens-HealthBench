@@ -1,19 +1,58 @@
+# Operating systems and editors
 .DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Local configuration and secrets
 .env
-.expo/
-.pytest_cache/
-.ruff_cache/
-.venv/
+.env.*
+!.env.example
+
+# Python
 __pycache__/
 *.py[cod]
-*.db
-*.sqlite3
-node_modules/
+*$py.class
+.venv/
+venv/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.coverage
+.coverage.*
+htmlcov/
+*.egg-info/
+.eggs/
+build/
 dist/
+
+# Local databases
+*.db
+*.sqlite
+*.sqlite3
+
+# Node, Expo, and React Native
+node_modules/
+.expo/
+.expo-shared/
 coverage/
-apps/mobile/.expo/
+*.tsbuildinfo
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Generated native projects and build artifacts
 apps/mobile/android/
 apps/mobile/ios/
+**/.gradle/
+**/DerivedData/
+**/Pods/
+*.apk
+*.aab
+*.ipa
+
+# Generated benchmark output; keep the directory in Git
 benchmark/artifacts/*
 !benchmark/artifacts/.gitkeep
-

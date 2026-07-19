@@ -1,9 +1,13 @@
 import { Ionicons } from "@expo/vector-icons";
 import { Tabs } from "expo-router";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { colors, type } from "@/theme";
 
 export default function TabsLayout(): React.ReactElement {
+  const insets = useSafeAreaInsets();
+  const bottomPadding = Math.max(insets.bottom, 10);
+
   return (
     <Tabs
       initialRouteName="index"
@@ -19,9 +23,9 @@ export default function TabsLayout(): React.ReactElement {
         tabBarStyle: {
           backgroundColor: colors.paper,
           borderTopColor: colors.line,
-          height: 82,
+          height: 56 + bottomPadding,
           paddingTop: 8,
-          paddingBottom: 16,
+          paddingBottom: bottomPadding,
         },
       }}
     >
@@ -40,6 +44,15 @@ export default function TabsLayout(): React.ReactElement {
           title: "Check in",
           tabBarIcon: ({ color, size }) => (
             <Ionicons name="add-circle-outline" color={color} size={size} />
+          ),
+        }}
+      />
+      <Tabs.Screen
+        name="cycle"
+        options={{
+          title: "Cycle",
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="calendar-outline" color={color} size={size} />
           ),
         }}
       />

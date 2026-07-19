@@ -1,10 +1,13 @@
-import { sendCheckIn, sendWearableDays } from "@/services/api";
+import { sendCheckIn, sendCycleDays, sendWearableDays } from "@/services/api";
 import {
+  markCycleSyncComplete,
+  markCycleSyncFailed,
   markCheckInFailed,
   markCheckInSynced,
   markWearableSyncComplete,
   markWearableSyncFailed,
   queuedCheckIns,
+  queuedCycleSyncs,
   queuedWearableSyncs,
 } from "@/services/storage";
 
@@ -16,6 +19,7 @@ export interface SyncResult {
 
 let activeSync: Promise<SyncResult> | undefined;
 let activeWearableSync: Promise<SyncResult> | undefined;
+let activeCycleSync: Promise<SyncResult> | undefined;
 
 async function runSync(token: string): Promise<SyncResult> {
   const queued = await queuedCheckIns();
@@ -93,4 +97,40 @@ export function syncQueuedWearables(token: string): Promise<SyncResult> {
     activeWearableSync = undefined;
   });
   return activeWearableSync;
+}
+
+async function runCycleSync(token: string): Promise<SyncResult> {
+  const queued = await queuedCycleSyncs();
+  let synced = 0;
+  let rejected: string | undefined;
+
+  for (const batch of queued) {
+    const result = await sendCycleDays(token, batch);
+    if (result.ok) {
+      await markCycleSyncComplete(batch.sync_id);
+      synced += 1;
+      continue;
+    }
+    await markCycleSyncFailed(batch.sync_id, result.message);
+    if (result.status === 428) {
+      rejected = "Review the current participation consent before cycle history can sync.";
+      break;
+    }
+    if (result.status === 409 || result.status === 422) {
+      await markCycleSyncComplete(batch.sync_id);
+      rejected = `A cycle-history edit was rejected: ${result.message}`;
+      continue;
+    }
+    break;
+  }
+
+  const remaining = (await queuedCycleSyncs()).length;
+  return rejected ? { synced, remaining, rejected } : { synced, remaining };
+}
+
+export function syncQueuedCycleDays(token: string): Promise<SyncResult> {
+  activeCycleSync ??= runCycleSync(token).finally(() => {
+    activeCycleSync = undefined;
+  });
+  return activeCycleSync;
 }

@@ -2,6 +2,10 @@ import type {
   AccountSummary,
   CheckInCreate,
   ConsentResponse,
+  CycleDeleteResponse,
+  CycleSyncRequest,
+  CycleSyncResponse,
+  CycleTrackingSummary,
   EnrollRequest,
   EnrollResponse,
   ForecastResponse,
@@ -13,6 +17,9 @@ import type {
 import {
   accountSummarySchema,
   consentResponseSchema,
+  cycleDeleteResponseSchema,
+  cycleSyncResponseSchema,
+  cycleTrackingSummarySchema,
   enrollResponseSchema,
   forecastResponseSchema,
   messageResponseSchema,
@@ -104,6 +111,59 @@ export function getForecast(token: string): Promise<Result<ForecastResponse>> {
 
 export function getAccount(token: string): Promise<Result<AccountSummary>> {
   return request<AccountSummary>("/v1/account", { method: "GET" }, accountSummarySchema, token);
+}
+
+export function enableCycleTracking(
+  token: string,
+  localToday: string,
+): Promise<Result<CycleTrackingSummary>> {
+  return request<CycleTrackingSummary>(
+    "/v1/cycle-tracking",
+    {
+      method: "PUT",
+      body: JSON.stringify({
+        acknowledged_sensitive_data: true,
+        local_today: localToday,
+      }),
+    },
+    cycleTrackingSummarySchema,
+    token,
+  );
+}
+
+export function getCycleTracking(
+  token: string,
+  localToday: string,
+): Promise<Result<CycleTrackingSummary>> {
+  return request<CycleTrackingSummary>(
+    `/v1/cycle-tracking?local_today=${encodeURIComponent(localToday)}`,
+    { method: "GET" },
+    cycleTrackingSummarySchema,
+    token,
+  );
+}
+
+export function sendCycleDays(
+  token: string,
+  payload: CycleSyncRequest,
+): Promise<Result<CycleSyncResponse>> {
+  return request<CycleSyncResponse>(
+    "/v1/cycle-days:sync",
+    { method: "POST", body: JSON.stringify(payload) },
+    cycleSyncResponseSchema,
+    token,
+  );
+}
+
+export function deleteCycleTracking(
+  token: string,
+): Promise<Result<CycleDeleteResponse>> {
+  return request<CycleDeleteResponse>(
+    "/v1/cycle-tracking",
+    { method: "DELETE" },
+    cycleDeleteResponseSchema,
+    token,
+  );
 }
 
 export function acceptConsent(

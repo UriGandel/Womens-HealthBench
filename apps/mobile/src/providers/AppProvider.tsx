@@ -1,4 +1,5 @@
 import NetInfo from "@react-native-community/netinfo";
+import * as Crypto from "expo-crypto";
 import { useRouter, useSegments } from "expo-router";
 import {
   createContext,
@@ -14,10 +15,13 @@ import { AppState, type AppStateStatus } from "react-native";
 
 import {
   acceptConsent,
+  deleteCycleTracking as deleteRemoteCycleTracking,
   deleteAccount as deleteRemoteAccount,
   deleteWearableData as deleteRemoteWearableData,
   enroll,
+  enableCycleTracking as enableRemoteCycleTracking,
   getAccount,
+  getCycleTracking,
   getForecast,
 } from "@/services/api";
 import { authenticateDevice } from "@/services/deviceAuth";
@@ -27,27 +31,43 @@ import {
   wearableSleepHoursForDate,
 } from "@/services/healthData";
 import {
+  cacheCycleDays,
+  cachedCycleDays,
   clearAccessToken,
+  clearLocalCycleData,
   clearLocalHealthData,
   clearLocalWearableData,
   clearStoredConsentVersion,
+  cycleQueueCount,
   enqueueCheckIn,
+  enqueueCycleSync,
   getAccessToken,
+  getCycleTrackingEnabled,
   getStoredConsentVersion,
   initializeStorage,
   queueCount,
+  replaceCachedCycleDays,
   saveAccessToken,
   saveStoredConsentVersion,
+  setCycleTrackingEnabled,
   wearableQueueCount,
 } from "@/services/storage";
-import { syncQueuedCheckIns, syncQueuedWearables } from "@/services/sync";
+import {
+  syncQueuedCheckIns,
+  syncQueuedCycleDays,
+  syncQueuedWearables,
+} from "@/services/sync";
 import type {
   AccountSummary,
   CheckInCreate,
+  CycleStatus,
+  CycleTrackingSummary,
   EnrollRequest,
   ForecastResponse,
   Result,
 } from "@/types";
+import { applyCycleDay, checkInCycleContext, localCycleSummary } from "@/utils/cycle";
+import { localDateString } from "@/utils/date";
 
 const CONSENT_VERSION = "2026-07-19-health-v1";
 const BACKGROUND_LOCK_MS = 5 * 60 * 1000;
@@ -61,19 +81,35 @@ interface AppContextValue {
   readonly isOnline: boolean;
   readonly pendingCount: number;
   readonly wearablePendingCount: number;
+  readonly cyclePendingCount: number;
   readonly syncIssue: string | null;
+  readonly cycleSyncIssue: string | null;
   readonly forecast: ForecastResponse | null;
   readonly account: AccountSummary | null;
+  readonly cycleSummary: CycleTrackingSummary | null;
   readonly isRefreshing: boolean;
   readonly isHealthSyncing: boolean;
   readonly unlockApp: () => Promise<Result<void>>;
   readonly lastCheckInDate: string | null;
   readonly enrollUser: (payload: EnrollRequest) => Promise<Result<void>>;
+  readonly completeEnrollment: () => void;
   readonly acceptCurrentConsent: () => Promise<Result<void>>;
   readonly submitCheckIn: (payload: CheckInCreate) => Promise<Result<void>>;
   readonly connectHealth: () => Promise<Result<void>>;
   readonly syncHealth: () => Promise<Result<void>>;
   readonly disconnectHealth: () => Promise<Result<void>>;
+  readonly enableCycleTracking: () => Promise<Result<void>>;
+  readonly logCycleDay: (
+    observedDate: string,
+    periodStatus: CycleStatus | null,
+  ) => Promise<Result<void>>;
+  readonly disableCycleTracking: () => Promise<Result<void>>;
+  readonly cycleContextForDate: (
+    observedDate: string,
+  ) => Promise<{
+    readonly period_status: "none" | CycleStatus;
+    readonly cycle_day: number | null;
+  }>;
   readonly wearableSleepHours: (observedDate: string) => Promise<number | null>;
   readonly refresh: () => Promise<void>;
   readonly deleteAccount: () => Promise<Result<void>>;
@@ -90,18 +126,22 @@ export function AppProvider({ children }: PropsWithChildren): React.ReactElement
   const [isOnline, setIsOnline] = useState(true);
   const [pendingCount, setPendingCount] = useState(0);
   const [wearablePendingCount, setWearablePendingCount] = useState(0);
+  const [cyclePendingCount, setCyclePendingCount] = useState(0);
   const [syncIssue, setSyncIssue] = useState<string | null>(null);
+  const [cycleSyncIssue, setCycleSyncIssue] = useState<string | null>(null);
   const [forecast, setForecast] = useState<ForecastResponse | null>(null);
   const [account, setAccount] = useState<AccountSummary | null>(null);
+  const [cycleSummary, setCycleSummary] = useState<CycleTrackingSummary | null>(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [isHealthSyncing, setIsHealthSyncing] = useState(false);
+  const [isFinishingEnrollment, setIsFinishingEnrollment] = useState(false);
   const backgroundedAt = useRef<number | null>(null);
   const [lastCheckInDate, setLastCheckInDate] = useState<string | null>(null);
   const router = useRouter();
   const segments = useSegments();
 
   const resetSession = useCallback(async (): Promise<void> => {
-    await clearAccessToken();
+    await Promise.all([clearAccessToken(), clearLocalHealthData()]);
     setToken(null);
     setIsLocked(false);
     setHasCurrentConsent(null);
@@ -109,6 +149,9 @@ export function AppProvider({ children }: PropsWithChildren): React.ReactElement
     setAccount(null);
     setLastCheckInDate(null);
     setWearablePendingCount(0);
+    setCyclePendingCount(0);
+    setCycleSummary(null);
+    setCycleSyncIssue(null);
   }, []);
 
   const refresh = useCallback(async (): Promise<void> => {
@@ -147,6 +190,24 @@ export function AppProvider({ children }: PropsWithChildren): React.ReactElement
         const updatedAccount = await getAccount(token);
         if (updatedAccount.ok) setAccount(updatedAccount.value);
       }
+      if (accountResult.ok && accountResult.value.cycle_tracking_enabled) {
+        await setCycleTrackingEnabled(true);
+        const cycleSync = await syncQueuedCycleDays(token);
+        setCyclePendingCount(cycleSync.remaining);
+        setCycleSyncIssue(cycleSync.rejected ?? null);
+        const cycleResult = await getCycleTracking(token, localDateString());
+        if (cycleResult.ok) {
+          setCycleSummary(cycleResult.value);
+          await replaceCachedCycleDays(cycleResult.value.days);
+          const updatedAccount = await getAccount(token);
+          if (updatedAccount.ok) setAccount(updatedAccount.value);
+        }
+      } else if (accountResult.ok) {
+        setCycleSummary(localCycleSummary(false, [], localDateString()));
+        setCyclePendingCount(0);
+        setCycleSyncIssue(null);
+        await clearLocalCycleData();
+      }
       const forecastResult = await getForecast(token);
       if (forecastResult.ok) setForecast(forecastResult.value);
       if (!forecastResult.ok && forecastResult.status === 401) {
@@ -162,11 +223,22 @@ export function AppProvider({ children }: PropsWithChildren): React.ReactElement
     void (async () => {
       try {
         await initializeStorage();
-        const [storedToken, storedConsent, queued, queuedWearables] = await Promise.all([
+        const [
+          storedToken,
+          storedConsent,
+          queued,
+          queuedWearables,
+          queuedCycles,
+          cycleEnabled,
+          localCycleDays,
+        ] = await Promise.all([
           getAccessToken(),
           getStoredConsentVersion(),
           queueCount(),
           wearableQueueCount(),
+          cycleQueueCount(),
+          getCycleTrackingEnabled(),
+          cachedCycleDays(),
         ]);
         if (active) {
           setToken(storedToken);
@@ -176,6 +248,10 @@ export function AppProvider({ children }: PropsWithChildren): React.ReactElement
           );
           setPendingCount(queued);
           setWearablePendingCount(queuedWearables);
+          setCyclePendingCount(queuedCycles);
+          setCycleSummary(
+            localCycleSummary(cycleEnabled, localCycleDays, localDateString()),
+          );
         }
       } catch {
         if (active) {
@@ -215,11 +291,19 @@ export function AppProvider({ children }: PropsWithChildren): React.ReactElement
       token &&
       !isLocked &&
       hasCurrentConsent === true &&
-      (inEnrollment || inLock || inConsent)
+      ((inEnrollment && !isFinishingEnrollment) || inLock || inConsent)
     ) {
       router.replace("/(tabs)");
     }
-  }, [hasCurrentConsent, isBooting, isLocked, router, segments, token]);
+  }, [
+    hasCurrentConsent,
+    isBooting,
+    isFinishingEnrollment,
+    isLocked,
+    router,
+    segments,
+    token,
+  ]);
 
   useEffect(() => {
     const handleAppState = (nextState: AppStateStatus): void => {
@@ -269,6 +353,7 @@ export function AppProvider({ children }: PropsWithChildren): React.ReactElement
         saveAccessToken(result.value.access_token),
         saveStoredConsentVersion(result.value.consent_version),
       ]);
+      setIsFinishingEnrollment(true);
       setToken(result.value.access_token);
       setHasCurrentConsent(true);
       setIsLocked(false);
@@ -276,6 +361,10 @@ export function AppProvider({ children }: PropsWithChildren): React.ReactElement
     },
     [],
   );
+
+  const completeEnrollment = useCallback((): void => {
+    setIsFinishingEnrollment(false);
+  }, []);
 
   const acceptCurrentConsent = useCallback(async (): Promise<Result<void>> => {
     if (!token) return { ok: false, message: "No account is available." };
@@ -376,6 +465,97 @@ export function AppProvider({ children }: PropsWithChildren): React.ReactElement
     [],
   );
 
+  const enableCycleTracking = useCallback(async (): Promise<Result<void>> => {
+    if (!token || hasCurrentConsent !== true) {
+      return { ok: false, message: "Current participation consent is required." };
+    }
+    if (!isOnline) {
+      return { ok: false, message: "A secure connection is required to enable cycle tracking." };
+    }
+    const result = await enableRemoteCycleTracking(token, localDateString());
+    if (!result.ok) return result;
+    await setCycleTrackingEnabled(true);
+    setCycleSummary(result.value);
+    const updatedAccount = await getAccount(token);
+    if (updatedAccount.ok) setAccount(updatedAccount.value);
+    return { ok: true, value: undefined };
+  }, [hasCurrentConsent, isOnline, token]);
+
+  const logCycleDay = useCallback(
+    async (
+      observedDate: string,
+      periodStatus: CycleStatus | null,
+    ): Promise<Result<void>> => {
+      if (!cycleSummary?.enabled) {
+        return { ok: false, message: "Enable cycle tracking before logging cycle history." };
+      }
+      const record = { observed_date: observedDate, period_status: periodStatus };
+      const payload = {
+        sync_id: Crypto.randomUUID(),
+        local_today: localDateString(),
+        records: [record],
+      };
+      try {
+        await cacheCycleDays([record]);
+        await enqueueCycleSync(payload);
+        setCycleSummary((current) =>
+          current ? applyCycleDay(current, record, localDateString()) : current,
+        );
+        setCyclePendingCount(await cycleQueueCount());
+        if (token && isOnline) {
+          const synced = await syncQueuedCycleDays(token);
+          setCyclePendingCount(synced.remaining);
+          setCycleSyncIssue(synced.rejected ?? null);
+          if (!synced.rejected) {
+            const refreshed = await getCycleTracking(token, localDateString());
+            if (refreshed.ok) {
+              setCycleSummary(refreshed.value);
+              await replaceCachedCycleDays(refreshed.value.days);
+            }
+            const forecastResult = await getForecast(token);
+            if (forecastResult.ok) setForecast(forecastResult.value);
+            const accountResult = await getAccount(token);
+            if (accountResult.ok) setAccount(accountResult.value);
+          }
+        }
+        return { ok: true, value: undefined };
+      } catch {
+        return {
+          ok: false,
+          message: "This cycle edit could not be saved to encrypted storage.",
+        };
+      }
+    },
+    [cycleSummary?.enabled, isOnline, token],
+  );
+
+  const disableCycleTracking = useCallback(async (): Promise<Result<void>> => {
+    if (!token) return { ok: false, message: "No account is available." };
+    if (!isOnline) {
+      return { ok: false, message: "A secure connection is required to delete cycle history." };
+    }
+    const result = await deleteRemoteCycleTracking(token);
+    if (!result.ok) return result;
+    await clearLocalCycleData();
+    setCycleSummary(localCycleSummary(false, [], localDateString()));
+    setCyclePendingCount(0);
+    setCycleSyncIssue(null);
+    const updatedAccount = await getAccount(token);
+    if (updatedAccount.ok) setAccount(updatedAccount.value);
+    return { ok: true, value: undefined };
+  }, [isOnline, token]);
+
+  const cycleContextForDate = useCallback(
+    async (observedDate: string) => {
+      if (!cycleSummary?.enabled) {
+        return { period_status: "none" as const, cycle_day: null };
+      }
+      const days = await cachedCycleDays();
+      return checkInCycleContext(days, observedDate);
+    },
+    [cycleSummary?.enabled],
+  );
+
   const deleteAccount = useCallback(async (): Promise<Result<void>> => {
     if (!token) return { ok: false, message: "No account is available." };
     const result = await deleteRemoteAccount(token);
@@ -388,6 +568,9 @@ export function AppProvider({ children }: PropsWithChildren): React.ReactElement
     setAccount(null);
     setPendingCount(0);
     setWearablePendingCount(0);
+    setCyclePendingCount(0);
+    setCycleSummary(null);
+    setCycleSyncIssue(null);
     return { ok: true, value: undefined };
   }, [token]);
 
@@ -401,19 +584,27 @@ export function AppProvider({ children }: PropsWithChildren): React.ReactElement
       isOnline,
       pendingCount,
       wearablePendingCount,
+      cyclePendingCount,
       syncIssue,
+      cycleSyncIssue,
       forecast,
       account,
+      cycleSummary,
       isRefreshing,
       isHealthSyncing,
       unlockApp,
       lastCheckInDate,
       enrollUser,
+      completeEnrollment,
       acceptCurrentConsent,
       submitCheckIn,
       connectHealth,
       syncHealth,
       disconnectHealth,
+      enableCycleTracking,
+      logCycleDay,
+      disableCycleTracking,
+      cycleContextForDate,
       wearableSleepHours,
       refresh,
       deleteAccount,
@@ -421,9 +612,16 @@ export function AppProvider({ children }: PropsWithChildren): React.ReactElement
     [
       acceptCurrentConsent,
       account,
+      cycleContextForDate,
+      cyclePendingCount,
+      cycleSummary,
+      cycleSyncIssue,
+      completeEnrollment,
       connectHealth,
       deleteAccount,
       disconnectHealth,
+      disableCycleTracking,
+      enableCycleTracking,
       enrollUser,
       forecast,
       hasCurrentConsent,
@@ -433,6 +631,7 @@ export function AppProvider({ children }: PropsWithChildren): React.ReactElement
       isRefreshing,
       isHealthSyncing,
       lastCheckInDate,
+      logCycleDay,
       pendingCount,
       refresh,
       storageError,

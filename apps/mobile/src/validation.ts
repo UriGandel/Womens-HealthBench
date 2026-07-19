@@ -61,6 +61,41 @@ export const accountSummarySchema = z.object({
   wearable_platform: z.enum(["apple_health", "health_connect"]).nullable(),
   wearable_day_count: z.number().int().nonnegative(),
   wearable_last_synced_at: z.string().nullable(),
+  cycle_tracking_enabled: z.boolean(),
+  cycle_day_count: z.number().int().nonnegative(),
+});
+
+export const cycleDayRecordSchema = z.object({
+  observed_date: z.iso.date(),
+  period_status: z.enum(["spotting", "flow"]).nullable(),
+});
+
+const cyclePatternSchema = z.object({
+  label: z.string(),
+  direction: z.enum(["higher", "lower"]),
+  detail: z.string(),
+});
+
+export const cycleTrackingSummarySchema = z.object({
+  enabled: z.boolean(),
+  days: z.array(cycleDayRecordSchema),
+  current_cycle_day: z.number().int().min(1).max(120).nullable(),
+  cycle_started_on: z.iso.date().nullable(),
+  observed_cycle_length_days: z.number().min(1).max(120).nullable(),
+  cycle_start_count: z.number().int().nonnegative(),
+  pattern_status: z.enum(["ready", "insufficient_data"]),
+  patterns: z.array(cyclePatternSchema),
+});
+
+export const cycleSyncResponseSchema = z.object({
+  accepted_days: z.number().int().nonnegative(),
+  deleted_days: z.number().int().nonnegative(),
+  duplicate: z.boolean(),
+});
+
+export const cycleDeleteResponseSchema = z.object({
+  deleted_days: z.number().int().nonnegative(),
+  message: z.string(),
 });
 
 export const wearableDailyRecordSchema = z

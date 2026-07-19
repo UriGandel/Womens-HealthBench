@@ -39,6 +39,14 @@ distributing an internal build to participants.
 
   It creates only missing wearable operational/research tables and is safe to
   rerun.
+- Run the additive cycle-tracking migration:
+
+  ```bash
+  python -m app.migrate_cycle_tracking
+  ```
+
+  It creates only the optional operational preference, history, and sync
+  receipt tables and is safe to rerun.
 - Disable or redact infrastructure logs that could capture authorization
   headers, query strings, database statements, or health payloads.
 
@@ -50,8 +58,9 @@ these production controls. They must contain synthetic data only.
 1. Obtain the appropriate ethics/legal determination for the intended
    participants, jurisdiction, consent language, and research use.
 2. Review the exact consent version in the API and mobile build.
-3. Exercise enrollment, device unlock, re-consent, offline sync, and deletion against a
-   staging deployment using synthetic records.
+3. Exercise enrollment, device unlock, re-consent, offline check-in/health/cycle
+   sync, cycle-history deletion, and account deletion against a staging
+   deployment using synthetic records.
 4. Confirm `/v1/*` responses use `Cache-Control: no-store` and that one account
    cannot access another account's records.
 5. Run the administrator export into a protected destination and verify the

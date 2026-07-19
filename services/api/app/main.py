@@ -12,12 +12,16 @@ from sqlalchemy.orm import Session
 
 from app.auth import hash_secret, new_access_token, require_account
 from app.config import get_settings
+from app.cycle import build_cycle_summary
 from app.database import create_tables, get_session
 from app.forecasting import build_forecast
 from app.models import (
     Account,
     CheckIn,
     ConsentRecord,
+    CycleDay,
+    CycleSyncReceipt,
+    CycleTrackingPreference,
     ParticipantLink,
     WearableConnection,
     WearableDailySummary,
@@ -36,6 +40,11 @@ from app.schemas import (
     CheckInResponse,
     ConsentResponse,
     ConsentUpdate,
+    CycleDeleteResponse,
+    CycleSyncRequest,
+    CycleSyncResponse,
+    CycleTrackingEnableRequest,
+    CycleTrackingSummary,
     EnrollRequest,
     EnrollResponse,
     ForecastResponse,
@@ -69,6 +78,66 @@ def require_current_consent(
             detail="Current operational and research consent is required",
         )
     return account
+
+
+def cycle_summary_for_account(
+    session: Session,
+    account: Account,
+    local_today: date,
+) -> CycleTrackingSummary:
+    prune_expired_cycle_days(session, account.id, local_today)
+    enabled = session.get(CycleTrackingPreference, account.id) is not None
+    earliest = local_today - timedelta(days=119)
+    days = session.scalars(
+        select(CycleDay)
+        .where(
+            CycleDay.account_id == account.id,
+            CycleDay.observed_date >= earliest,
+            CycleDay.observed_date <= local_today,
+        )
+        .order_by(CycleDay.observed_date.asc())
+    ).all()
+    checkins = session.scalars(
+        select(CheckIn)
+        .where(
+            CheckIn.account_id == account.id,
+            CheckIn.observed_date >= earliest,
+            CheckIn.observed_date <= local_today,
+        )
+        .order_by(CheckIn.observed_date.asc())
+    ).all()
+    return build_cycle_summary(
+        enabled=enabled,
+        days=list(days),
+        checkins=list(checkins),
+        today=local_today,
+    )
+
+
+def validated_local_today(value: date | None) -> date:
+    utc_today = datetime.now(UTC).date()
+    local_today = value or utc_today
+    if local_today < utc_today - timedelta(days=1) or local_today > utc_today + timedelta(days=1):
+        raise HTTPException(
+            status_code=422,
+            detail="Local calendar date must be within one day of the server UTC date",
+        )
+    return local_today
+
+
+def prune_expired_cycle_days(
+    session: Session,
+    account_id: str,
+    local_today: date,
+) -> None:
+    earliest = local_today - timedelta(days=119)
+    session.execute(
+        delete(CycleDay).where(
+            CycleDay.account_id == account_id,
+            CycleDay.observed_date < earliest,
+        )
+    )
+    session.flush()
 
 
 def create_app() -> FastAPI:
@@ -261,7 +330,184 @@ def create_app() -> FastAPI:
             .where(CheckIn.account_id == account.id)
             .order_by(CheckIn.observed_date.asc())
         ).all()
-        return build_forecast(checkins)
+        latest = checkins[-1] if checkins else None
+        cycle_status = None
+        if latest is not None and account.cycle_tracking_preference is not None:
+            matching_cycle_day = session.scalar(
+                select(CycleDay).where(
+                    CycleDay.account_id == account.id,
+                    CycleDay.observed_date == latest.observed_date,
+                )
+            )
+            if matching_cycle_day is not None:
+                cycle_status = matching_cycle_day.period_status
+        return build_forecast(checkins, cycle_status=cycle_status)
+
+    @api.put(
+        "/v1/cycle-tracking",
+        response_model=CycleTrackingSummary,
+        tags=["cycle"],
+    )
+    def enable_cycle_tracking(
+        payload: CycleTrackingEnableRequest,
+        session: Annotated[Session, Depends(get_session)],
+        account: Annotated[Account, Depends(require_current_consent)],
+    ) -> CycleTrackingSummary:
+        local_today = validated_local_today(payload.local_today)
+        if account.cycle_tracking_preference is None:
+            session.add(CycleTrackingPreference(account_id=account.id))
+            session.commit()
+        summary = cycle_summary_for_account(session, account, local_today)
+        session.commit()
+        return summary
+
+    @api.get(
+        "/v1/cycle-tracking",
+        response_model=CycleTrackingSummary,
+        tags=["cycle"],
+    )
+    def get_cycle_tracking(
+        session: Annotated[Session, Depends(get_session)],
+        account: Annotated[Account, Depends(require_current_consent)],
+        local_today: date | None = None,
+    ) -> CycleTrackingSummary:
+        summary = cycle_summary_for_account(
+            session,
+            account,
+            validated_local_today(local_today),
+        )
+        session.commit()
+        return summary
+
+    @api.post(
+        "/v1/cycle-days:sync",
+        response_model=CycleSyncResponse,
+        tags=["cycle"],
+    )
+    def sync_cycle_days(
+        payload: CycleSyncRequest,
+        session: Annotated[Session, Depends(get_session)],
+        account: Annotated[Account, Depends(require_current_consent)],
+    ) -> CycleSyncResponse:
+        if account.cycle_tracking_preference is None:
+            raise HTTPException(status_code=409, detail="Cycle tracking is not enabled")
+        today = validated_local_today(payload.local_today)
+        earliest = today - timedelta(days=119)
+        for record in payload.records:
+            if record.observed_date > today:
+                raise HTTPException(status_code=422, detail="Cycle date cannot be in the future")
+            if record.observed_date < earliest:
+                raise HTTPException(
+                    status_code=422,
+                    detail="Cycle history is limited to the most recent 120 calendar days",
+                )
+
+        prune_expired_cycle_days(session, account.id, today)
+        canonical = json.dumps(
+            payload.model_dump(mode="json"),
+            sort_keys=True,
+            separators=(",", ":"),
+        )
+        payload_hash = hashlib.sha256(canonical.encode()).hexdigest()
+        existing_receipt = session.scalar(
+            select(CycleSyncReceipt).where(
+                CycleSyncReceipt.account_id == account.id,
+                CycleSyncReceipt.sync_id == payload.sync_id,
+            )
+        )
+        if existing_receipt is not None:
+            if existing_receipt.payload_hash != payload_hash:
+                raise HTTPException(
+                    status_code=409,
+                    detail="Sync identifier was already used with different cycle data",
+                )
+            return CycleSyncResponse(
+                accepted_days=existing_receipt.accepted_days,
+                deleted_days=existing_receipt.deleted_days,
+                duplicate=True,
+            )
+
+        accepted_days = 0
+        deleted_days = 0
+        now = datetime.now(UTC)
+        for record in payload.records:
+            existing_day = session.scalar(
+                select(CycleDay).where(
+                    CycleDay.account_id == account.id,
+                    CycleDay.observed_date == record.observed_date,
+                )
+            )
+            if record.period_status is None:
+                if existing_day is not None:
+                    session.delete(existing_day)
+                    deleted_days += 1
+                continue
+            if existing_day is None:
+                session.add(
+                    CycleDay(
+                        account_id=account.id,
+                        observed_date=record.observed_date,
+                        period_status=record.period_status,
+                    )
+                )
+            else:
+                existing_day.period_status = record.period_status
+                existing_day.updated_at = now
+            accepted_days += 1
+
+        session.add(
+            CycleSyncReceipt(
+                account_id=account.id,
+                sync_id=payload.sync_id,
+                payload_hash=payload_hash,
+                accepted_days=accepted_days,
+                deleted_days=deleted_days,
+                created_at=now,
+            )
+        )
+        try:
+            session.commit()
+        except IntegrityError as error:
+            session.rollback()
+            raise HTTPException(
+                status_code=409,
+                detail="Cycle sync conflicts with an existing batch",
+            ) from error
+        return CycleSyncResponse(
+            accepted_days=accepted_days,
+            deleted_days=deleted_days,
+            duplicate=False,
+        )
+
+    @api.delete(
+        "/v1/cycle-tracking",
+        response_model=CycleDeleteResponse,
+        tags=["cycle"],
+    )
+    def delete_cycle_tracking(
+        session: Annotated[Session, Depends(get_session)],
+        account: Annotated[Account, Depends(require_account)],
+    ) -> CycleDeleteResponse:
+        deleted_days = int(
+            session.scalar(
+                select(func.count(CycleDay.id)).where(CycleDay.account_id == account.id)
+            )
+            or 0
+        )
+        session.execute(delete(CycleDay).where(CycleDay.account_id == account.id))
+        session.execute(
+            delete(CycleSyncReceipt).where(CycleSyncReceipt.account_id == account.id)
+        )
+        session.execute(
+            delete(CycleTrackingPreference).where(
+                CycleTrackingPreference.account_id == account.id
+            )
+        )
+        session.commit()
+        return CycleDeleteResponse(
+            deleted_days=deleted_days,
+            message="Cycle tracking was disabled and cycle history was deleted",
+        )
 
     @api.post(
         "/v1/wearable-days:sync",
@@ -453,8 +699,22 @@ def create_app() -> FastAPI:
             )
             or 0
         )
+        session.execute(
+            delete(CycleDay).where(
+                CycleDay.account_id == account.id,
+                CycleDay.observed_date
+                < datetime.now(UTC).date() - timedelta(days=120),
+            )
+        )
+        session.flush()
+        cycle_day_count = int(
+            session.scalar(
+                select(func.count(CycleDay.id)).where(CycleDay.account_id == account.id)
+            )
+            or 0
+        )
         connection = account.wearable_connection
-        return AccountSummary(
+        summary = AccountSummary(
             consent_current=(
                 consent.consent_version == settings.consent_version
                 and consent.operational_accepted
@@ -469,7 +729,11 @@ def create_app() -> FastAPI:
             wearable_last_synced_at=(
                 connection.last_synced_at if connection is not None else None
             ),
+            cycle_tracking_enabled=account.cycle_tracking_preference is not None,
+            cycle_day_count=cycle_day_count,
         )
+        session.commit()
+        return summary
 
     @api.delete("/v1/account", response_model=MessageResponse, tags=["privacy"])
     def delete_account(

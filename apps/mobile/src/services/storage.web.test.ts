@@ -4,19 +4,25 @@ import type { CheckInCreate, WearableDailyRecord } from "@/types";
 
 import {
   cacheWearableDays,
+  cacheCycleDays,
+  cachedCycleDays,
   cachedWearableDay,
   clearAccessToken,
   clearLocalHealthData,
+  cycleQueueCount,
+  enqueueCycleSync,
   enqueueCheckIn,
   enqueueWearableSync,
   getAccessToken,
   getStoredConsentVersion,
+  getCycleTrackingEnabled,
   getWearableState,
   queueCount,
   queuedCheckIns,
   queuedWearableSyncs,
   saveAccessToken,
   saveStoredConsentVersion,
+  setCycleTrackingEnabled,
   saveWearableState,
   wearableQueueCount,
 } from "./storage.web";
@@ -80,4 +86,33 @@ test("supports the wearable storage contract without persistent browser data", a
     last_read_at: "2026-07-19T12:00:00.000Z",
     time_zone: "UTC",
   });
+});
+
+test("supports volatile cycle state, edits, deletions, and queueing", async () => {
+  await setCycleTrackingEnabled(true);
+  await cacheCycleDays([
+    { observed_date: "2026-07-18", period_status: "spotting" },
+    { observed_date: "2026-07-19", period_status: "flow" },
+  ]);
+  await enqueueCycleSync({
+    sync_id: "cycle-sync-1",
+    local_today: "2026-07-19",
+    records: [{ observed_date: "2026-07-19", period_status: "flow" }],
+  });
+
+  expect(await getCycleTrackingEnabled()).toBe(true);
+  expect(await cachedCycleDays()).toHaveLength(2);
+  expect(await cycleQueueCount()).toBe(1);
+
+  await cacheCycleDays([
+    { observed_date: "2026-07-18", period_status: null },
+  ]);
+  expect(await cachedCycleDays()).toEqual([
+    { observed_date: "2026-07-19", period_status: "flow" },
+  ]);
+
+  await clearLocalHealthData();
+  expect(await getCycleTrackingEnabled()).toBe(false);
+  expect(await cachedCycleDays()).toEqual([]);
+  expect(await cycleQueueCount()).toBe(0);
 });

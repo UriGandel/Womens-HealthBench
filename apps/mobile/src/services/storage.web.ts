@@ -7,6 +7,8 @@
  */
 import type {
   CheckInCreate,
+  CycleDayRecord,
+  CycleSyncRequest,
   WearableDailyRecord,
   WearablePlatform,
   WearableSyncRequest,
@@ -24,6 +26,9 @@ let checkInQueue: ReadonlyArray<CheckInCreate> = [];
 let wearableQueue: ReadonlyArray<WearableSyncRequest> = [];
 let wearableDays: ReadonlyMap<string, WearableDailyRecord> = new Map();
 let wearableState: StoredWearableState | null = null;
+let cycleEnabled = false;
+let cycleQueue: ReadonlyArray<CycleSyncRequest> = [];
+let cycleDays: ReadonlyMap<string, CycleDayRecord> = new Map();
 
 export async function initializeStorage(): Promise<void> {
   // Browser preview state is initialized by the module.
@@ -150,6 +155,81 @@ export async function wearableQueueCount(): Promise<number> {
   return wearableQueue.length;
 }
 
+export async function setCycleTrackingEnabled(enabled: boolean): Promise<void> {
+  cycleEnabled = enabled;
+}
+
+export async function getCycleTrackingEnabled(): Promise<boolean> {
+  return cycleEnabled;
+}
+
+export async function cacheCycleDays(
+  records: ReadonlyArray<CycleDayRecord>,
+): Promise<void> {
+  const updated = new Map(cycleDays);
+  for (const record of records) {
+    if (record.period_status === null) {
+      updated.delete(record.observed_date);
+    } else {
+      updated.set(record.observed_date, record);
+    }
+  }
+  cycleDays = updated;
+}
+
+export async function replaceCachedCycleDays(
+  records: ReadonlyArray<CycleDayRecord>,
+): Promise<void> {
+  cycleDays = new Map(
+    records.flatMap((record) =>
+      record.period_status === null ? [] : [[record.observed_date, record] as const],
+    ),
+  );
+}
+
+export async function cachedCycleDays(): Promise<ReadonlyArray<CycleDayRecord>> {
+  return [...cycleDays.values()].sort((a, b) =>
+    a.observed_date.localeCompare(b.observed_date),
+  );
+}
+
+export async function cachedCycleDay(
+  observedDate: string,
+): Promise<CycleDayRecord | null> {
+  return cycleDays.get(observedDate) ?? null;
+}
+
+export async function enqueueCycleSync(payload: CycleSyncRequest): Promise<void> {
+  if (!cycleQueue.some((item) => item.sync_id === payload.sync_id)) {
+    cycleQueue = [...cycleQueue, payload];
+  }
+}
+
+export async function queuedCycleSyncs(): Promise<ReadonlyArray<CycleSyncRequest>> {
+  return cycleQueue;
+}
+
+export async function markCycleSyncComplete(syncId: string): Promise<void> {
+  cycleQueue = cycleQueue.filter((item) => item.sync_id !== syncId);
+}
+
+export async function markCycleSyncFailed(
+  _syncId: string,
+  _message: string,
+): Promise<void> {
+  // Retry metadata is not retained in the volatile preview.
+}
+
+export async function cycleQueueCount(): Promise<number> {
+  return cycleQueue.length;
+}
+
+export async function clearLocalCycleData(): Promise<void> {
+  cycleEnabled = false;
+  cycleQueue = [];
+  cycleDays = new Map();
+}
+
 export async function saveWearableState(
   platform: WearablePlatform,
   lastReadAt: string,
@@ -175,4 +255,5 @@ export async function clearLocalWearableData(): Promise<void> {
 export async function clearLocalHealthData(): Promise<void> {
   checkInQueue = [];
   await clearLocalWearableData();
+  await clearLocalCycleData();
 }

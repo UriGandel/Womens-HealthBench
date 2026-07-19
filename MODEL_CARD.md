@@ -8,10 +8,13 @@
 - **Output:** probability that tomorrow's mean normalized symptom burden is at
   least 0.5
 
-The production alpha remains `tomorrow-gently-transparent-0.1.0`. Synthetic
-wearable results must not change it. Promotion requires incremental value on
-consented non-synthetic data, a new model version, a validation report, an
-updated model card, and a tested rollback path.
+The production alpha uses `tomorrow-gently-transparent-0.2.0`. Version 0.2 only
+allows separately logged spotting or flow on the latest check-in date to supply
+the existing cycle-context input; it adds no fertility or phase prediction.
+Synthetic wearable results must not change the live model. Further promotion
+requires incremental value on consented non-synthetic data, a new model
+version, a validation report, an updated model card, and a tested rollback
+path.
 
 ## Intended use
 
@@ -81,4 +84,13 @@ temporal validation, calibration review, subgroup and per-participant error
 analysis where sample sizes permit, missingness stress tests, consent/license
 review, and a rollback path keyed by model version. Monitor input missingness,
 probability distribution, calibration when delayed outcomes arrive, service
-failures, and consent/deletion correctness. Do not log health payloads.
+  failures, and consent/deletion correctness. Do not log health payloads.
+
+## Optional cycle-history boundary
+
+Cycle history is a separately enabled operational feature limited to 120 days
+of manually logged spotting or flow. It may replace the period context for a
+forecast only when a cycle record matches the latest check-in date. Cycle-only
+records are excluded from research exports. The product calculates elapsed
+cycle day from observed flow starts and descriptive symptom associations; it
+does not predict fertility, ovulation, future phases, or the next period.

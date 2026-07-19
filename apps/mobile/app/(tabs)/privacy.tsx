@@ -19,10 +19,13 @@ export default function PrivacyScreen(): React.ReactElement {
     forecast,
     pendingCount,
     isOnline,
+    cyclePendingCount,
+    disableCycleTracking,
     deleteAccount,
   } = useApp();
   const router = useRouter();
   const [deleting, setDeleting] = useState(false);
+  const [deletingCycle, setDeletingCycle] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
 
   const confirmDelete = (): void => {
@@ -40,6 +43,32 @@ export default function PrivacyScreen(): React.ReactElement {
               const result = await deleteAccount();
               setDeleting(false);
               if (!result.ok) setMessage(result.message);
+            })();
+          },
+        },
+      ],
+    );
+  };
+
+  const confirmDeleteCycle = (): void => {
+    Alert.alert(
+      "Disable and delete cycle history?",
+      "This deletes separately logged cycle history and queued cycle edits. Cycle values already included in completed check-ins remain unless you delete the entire account.",
+      [
+        { text: "Keep cycle history", style: "cancel" },
+        {
+          text: "Delete cycle history",
+          style: "destructive",
+          onPress: () => {
+            void (async () => {
+              setDeletingCycle(true);
+              const result = await disableCycleTracking();
+              setDeletingCycle(false);
+              setMessage(
+                result.ok
+                  ? "Cycle tracking was disabled and its separate history was deleted."
+                  : result.message,
+              );
             })();
           },
         },
@@ -92,6 +121,35 @@ export default function PrivacyScreen(): React.ReactElement {
       </View>
 
       <View style={styles.card}>
+        <Text style={styles.cardLabel}>CYCLE HISTORY</Text>
+        <Text style={styles.listText}>
+          {account?.cycle_tracking_enabled
+            ? `${account.cycle_day_count} bleeding days are stored separately, with ${cyclePendingCount} edits on this device.`
+            : "Optional cycle tracking is currently disabled."}
+        </Text>
+        {account?.cycle_tracking_enabled ? (
+          <>
+            <Text style={styles.finePrint}>
+              Separate cycle history is operational only. Cycle values already
+              submitted in completed check-ins remain part of those check-ins and
+              research rows.
+            </Text>
+            <Button
+              label="Disable and delete cycle history"
+              variant="danger"
+              disabled={!isOnline}
+              loading={deletingCycle}
+              onPress={confirmDeleteCycle}
+            />
+          </>
+        ) : (
+          <Text style={styles.finePrint}>
+            Open the Cycle tab to review the privacy boundary and enable it.
+          </Text>
+        )}
+      </View>
+
+      <View style={styles.card}>
         <Text style={styles.cardLabel}>YOUR RECORDS</Text>
         <View style={styles.metricRow}>
           <View style={styles.metric}>
@@ -114,7 +172,7 @@ export default function PrivacyScreen(): React.ReactElement {
       <View style={styles.card}>
         <Text style={styles.cardLabel}>WHAT WE DO NOT COLLECT</Text>
         <Text style={styles.listText}>
-          Free text · precise location · contacts · advertising IDs · photos · browsing activity
+          Free text · precise location · contacts · advertising IDs · photos · browsing activity · fertility or ovulation estimates
         </Text>
       </View>
 

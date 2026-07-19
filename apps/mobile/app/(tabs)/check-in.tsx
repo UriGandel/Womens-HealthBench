@@ -55,10 +55,13 @@ export default function CheckInScreen(): React.ReactElement {
     pendingCount,
     syncIssue,
     wearableSleepHours,
+    cycleSummary,
+    cycleContextForDate,
+    logCycleDay,
   } = useApp();
   const router = useRouter();
   const [periodStatus, setPeriodStatus] = useState<PeriodStatus>("none");
-  const [cycleDay, setCycleDay] = useState("");
+  const [cycleDay, setCycleDay] = useState<number | null>(null);
   const [sleepHours, setSleepHours] = useState("");
   const [sleepPrefilled, setSleepPrefilled] = useState(false);
   const [ratings, setRatings] = useState<Ratings>(INITIAL_RATINGS);
@@ -79,22 +82,31 @@ export default function CheckInScreen(): React.ReactElement {
     };
   }, [wearableSleepHours]);
 
+  useEffect(() => {
+    let active = true;
+    if (!cycleSummary?.enabled) {
+      setPeriodStatus("none");
+      setCycleDay(null);
+      return;
+    }
+    void cycleContextForDate(localDateString()).then((context) => {
+      if (!active) return;
+      setPeriodStatus(context.period_status);
+      setCycleDay(context.cycle_day);
+    });
+    return () => {
+      active = false;
+    };
+  }, [cycleContextForDate, cycleSummary?.days, cycleSummary?.enabled]);
+
   const updateRating = (key: keyof Ratings, value: Rating): void => {
     setRatings((current) => ({ ...current, [key]: value }));
   };
 
   const submit = async (): Promise<void> => {
     const parsedSleep = sleepHours.trim() ? Number(sleepHours) : null;
-    const parsedCycle = cycleDay.trim() ? Number(cycleDay) : null;
     if (parsedSleep === null || !Number.isFinite(parsedSleep) || parsedSleep < 0 || parsedSleep > 24) {
       setError("Enter your hours of sleep (0–24).");
-      return;
-    }
-    if (
-      parsedCycle !== null &&
-      (!Number.isInteger(parsedCycle) || parsedCycle < 1 || parsedCycle > 120)
-    ) {
-      setError("Cycle day must be a whole number from 1 to 120, or left blank.");
       return;
     }
     const { sleepQuality, stress, fatigue, brainFog, headache, pelvicPain, moodDisruption } =
@@ -114,11 +126,24 @@ export default function CheckInScreen(): React.ReactElement {
 
     setLoading(true);
     setError(null);
+    let submittedCycleDay = cycleDay;
+    if (cycleSummary?.enabled) {
+      const cycleResult = await logCycleDay(
+        localDateString(),
+        periodStatus === "none" ? null : periodStatus,
+      );
+      if (!cycleResult.ok) {
+        setLoading(false);
+        setError(cycleResult.message);
+        return;
+      }
+      submittedCycleDay = (await cycleContextForDate(localDateString())).cycle_day;
+    }
     const result = await submitCheckIn({
       client_submission_id: Crypto.randomUUID(),
       observed_date: localDateString(),
-      period_status: periodStatus,
-      cycle_day: parsedCycle,
+      period_status: cycleSummary?.enabled ? periodStatus : "none",
+      cycle_day: cycleSummary?.enabled ? submittedCycleDay : null,
       sleep_hours: parsedSleep,
       sleep_quality: sleepQuality,
       stress,
@@ -157,44 +182,40 @@ export default function CheckInScreen(): React.ReactElement {
       ) : null}
       {syncIssue ? <Notice text={syncIssue} tone="warning" /> : null}
 
-      <View style={styles.card}>
-        <Text style={styles.sectionTitle}>Cycle context</Text>
-        <Text style={styles.fieldLabel}>Period status</Text>
-        <View style={styles.segmented}>
-          {PERIOD_OPTIONS.map((option) => (
-            <Pressable
-              key={option.value}
-              accessibilityRole="button"
-              accessibilityState={{ selected: periodStatus === option.value }}
-              onPress={() => setPeriodStatus(option.value)}
-              style={[
-                styles.segment,
-                periodStatus === option.value && styles.segmentSelected,
-              ]}
-            >
-              <Text
+      {cycleSummary?.enabled ? (
+        <View style={styles.card}>
+          <Text style={styles.sectionTitle}>Cycle context</Text>
+          <Text style={styles.fieldLabel}>Today’s bleeding</Text>
+          <View style={styles.segmented}>
+            {PERIOD_OPTIONS.map((option) => (
+              <Pressable
+                key={option.value}
+                accessibilityRole="button"
+                accessibilityState={{ selected: periodStatus === option.value }}
+                onPress={() => setPeriodStatus(option.value)}
                 style={[
-                  styles.segmentLabel,
-                  periodStatus === option.value && styles.segmentLabelSelected,
+                  styles.segment,
+                  periodStatus === option.value && styles.segmentSelected,
                 ]}
               >
-                {option.label}
-              </Text>
-            </Pressable>
-          ))}
+                <Text
+                  style={[
+                    styles.segmentLabel,
+                    periodStatus === option.value && styles.segmentLabelSelected,
+                  ]}
+                >
+                  {option.label}
+                </Text>
+              </Pressable>
+            ))}
+          </View>
+          <Text style={styles.helper}>
+            {cycleDay === null
+              ? "CYCLE DAY IS AVAILABLE AFTER A FLOW START IS LOGGED"
+              : `AUTOMATICALLY CALCULATED · CYCLE DAY ${cycleDay}`}
+          </Text>
         </View>
-        <Text style={styles.fieldLabel}>Cycle day · optional</Text>
-        <TextInput
-          accessibilityLabel="Cycle day, optional"
-          keyboardType="number-pad"
-          maxLength={3}
-          placeholder="e.g. 14"
-          placeholderTextColor={colors.muted}
-          value={cycleDay}
-          onChangeText={setCycleDay}
-          style={styles.input}
-        />
-      </View>
+      ) : null}
 
       <View style={styles.card}>
         <Text style={styles.sectionTitle}>Sleep & load</Text>

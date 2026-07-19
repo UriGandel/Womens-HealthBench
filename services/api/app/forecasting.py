@@ -5,7 +5,7 @@ from statistics import mean
 from app.models import CheckIn
 from app.schemas import ForecastFactor, ForecastResponse
 
-MODEL_VERSION = "tomorrow-gently-transparent-0.1.0"
+MODEL_VERSION = "tomorrow-gently-transparent-0.2.0"
 DISCLAIMER = (
     "Experimental wellness forecast — not a diagnosis or medical advice. "
     "Do not delay professional care because of this result."
@@ -23,7 +23,11 @@ def symptom_burden(checkin: CheckIn) -> float:
     return mean(values) / 4.0
 
 
-def build_forecast(checkins: Sequence[CheckIn]) -> ForecastResponse:
+def build_forecast(
+    checkins: Sequence[CheckIn],
+    *,
+    cycle_status: str | None = None,
+) -> ForecastResponse:
     usable = len(checkins)
     if usable < 7:
         return ForecastResponse(
@@ -39,7 +43,8 @@ def build_forecast(checkins: Sequence[CheckIn]) -> ForecastResponse:
     rolling_burden = mean(symptom_burden(item) for item in recent[-3:])
     sleep_pressure = 1 - (latest.sleep_quality / 4)
     stress_pressure = latest.stress / 4
-    period_context = 1.0 if latest.period_status in {"spotting", "flow"} else 0.0
+    effective_period_status = cycle_status or latest.period_status
+    period_context = 1.0 if effective_period_status in {"spotting", "flow"} else 0.0
 
     linear_score = (
         -1.35
@@ -76,12 +81,18 @@ def build_forecast(checkins: Sequence[CheckIn]) -> ForecastResponse:
                 detail="Your latest sleep-quality rating was low.",
             )
         )
-    if latest.period_status != "none":
+    if effective_period_status != "none":
+        detail = (
+            "Separately logged cycle history reported spotting or flow "
+            "on the latest check-in date."
+            if cycle_status is not None
+            else "Your latest check-in reported spotting or flow."
+        )
         factors.append(
             ForecastFactor(
                 label="Cycle context",
                 direction="context",
-                detail="Your latest check-in reported spotting or flow.",
+                detail=detail,
             )
         )
     if not factors:

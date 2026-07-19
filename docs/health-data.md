@@ -42,9 +42,12 @@ rebuild the participant's relative research timeline.
 
 Wearable-only participant-days are valid feature observations but cannot create
 symptom targets. Synthetic wearable signals test the pipeline and leakage
-protections only. The live `tomorrow-gently-transparent-0.1.0` forecast remains
-unchanged until consented non-synthetic evaluation shows better AUROC or Brier
-score with calibration no worse than the no-wearable ablation.
+protections only. The live `tomorrow-gently-transparent-0.2.0` forecast does not
+use imported wearable values. That remains unchanged until consented
+non-synthetic evaluation shows better AUROC or Brier score with calibration no
+worse than the no-wearable ablation. Version 0.2 only permits separately logged
+cycle status to replace period context when it matches the latest check-in
+date.
 
 ## User control
 

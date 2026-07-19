@@ -51,6 +51,15 @@ class Account(Base):
     wearable_sync_receipts: Mapped[list[WearableSyncReceipt]] = relationship(
         back_populates="account", cascade="all, delete-orphan"
     )
+    cycle_tracking_preference: Mapped[CycleTrackingPreference | None] = relationship(
+        back_populates="account", cascade="all, delete-orphan", uselist=False
+    )
+    cycle_days: Mapped[list[CycleDay]] = relationship(
+        back_populates="account", cascade="all, delete-orphan"
+    )
+    cycle_sync_receipts: Mapped[list[CycleSyncReceipt]] = relationship(
+        back_populates="account", cascade="all, delete-orphan"
+    )
 
 
 class ParticipantLink(Base):
@@ -174,6 +183,55 @@ class WearableSyncReceipt(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
 
     account: Mapped[Account] = relationship(back_populates="wearable_sync_receipts")
+
+
+class CycleTrackingPreference(Base):
+    __tablename__ = "health_cycle_tracking_preferences"
+
+    account_id: Mapped[str] = mapped_column(
+        ForeignKey("identity_accounts.id", ondelete="CASCADE"), primary_key=True
+    )
+    enabled_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
+
+    account: Mapped[Account] = relationship(back_populates="cycle_tracking_preference")
+
+
+class CycleDay(Base):
+    __tablename__ = "health_cycle_days"
+    __table_args__ = (
+        UniqueConstraint("account_id", "observed_date", name="uq_cycle_account_day"),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uuid_string)
+    account_id: Mapped[str] = mapped_column(
+        ForeignKey("identity_accounts.id", ondelete="CASCADE"), index=True
+    )
+    observed_date: Mapped[date] = mapped_column(Date)
+    period_status: Mapped[str] = mapped_column(String(16))
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utc_now, onupdate=utc_now
+    )
+
+    account: Mapped[Account] = relationship(back_populates="cycle_days")
+
+
+class CycleSyncReceipt(Base):
+    __tablename__ = "health_cycle_sync_receipts"
+    __table_args__ = (
+        UniqueConstraint("account_id", "sync_id", name="uq_cycle_account_sync"),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uuid_string)
+    account_id: Mapped[str] = mapped_column(
+        ForeignKey("identity_accounts.id", ondelete="CASCADE"), index=True
+    )
+    sync_id: Mapped[str] = mapped_column(String(64))
+    payload_hash: Mapped[str] = mapped_column(String(64))
+    accepted_days: Mapped[int] = mapped_column(Integer)
+    deleted_days: Mapped[int] = mapped_column(Integer)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
+
+    account: Mapped[Account] = relationship(back_populates="cycle_sync_receipts")
 
 
 class ResearchEvent(Base):

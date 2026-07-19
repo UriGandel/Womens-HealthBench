@@ -62,6 +62,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     paddingHorizontal: 18,
+    paddingVertical: 14,
   },
   primary: {
     backgroundColor: colors.mineralDark,
@@ -84,8 +85,11 @@ const styles = StyleSheet.create({
   label: {
     fontFamily: type.body,
     fontSize: 16,
+    lineHeight: 20,
     fontWeight: "700",
     letterSpacing: 0.1,
+    textAlign: "center",
+    flexShrink: 1,
   },
   primaryLabel: {
     color: colors.white,

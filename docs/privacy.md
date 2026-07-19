@@ -15,6 +15,18 @@ resting heart rate, HRV with method, respiratory rate, oxygen saturation, and
 wrist/skin temperature deviation. The app does not request reproductive,
 fertility, ECG, location, workout-route, or clinical-record permissions.
 
+Optional cycle tracking is enabled through a separate in-context
+acknowledgement. It stores up to 120 local calendar days containing only
+spotting or flow status. Separately logged cycle history is operational data:
+it can inform the participant experience and a matching-date forecast context,
+but it is not exported to the research dataset. Cycle values already submitted
+inside a completed check-in remain part of that check-in and its research row.
+Disabling cycle tracking deletes the separate server history, sync receipts,
+and encrypted local queue/cache without rewriting completed check-ins.
+The client sends its local calendar date with cycle requests; the API accepts
+only dates within one day of UTC and physically prunes expired cycle rows on
+the next account or cycle access.
+
 The account store holds operational identity. Operational
 wearable summaries are stored separately from manual check-ins. The research
 store uses a random research identifier connected through a separately
@@ -31,6 +43,8 @@ data.
 ## Data lifecycle
 
 - Collect only the structured fields documented in the public schema.
+- Do not use cycle history to estimate fertility, ovulation, future phases, or
+  a next-period date.
 - Encrypt transport and storage. Do not put health payloads or authorization
   material in logs, crash reports, or analytics.
 - Create a research row for every contributed participant-day; sensor-only days
@@ -41,6 +55,8 @@ data.
   revoked separately in system settings.
 - Account deletion removes account-linked operational and research data,
   including the protected identity-to-research mapping.
+- “Disable and delete cycle history” removes separately logged cycle records
+  while preserving the account, check-ins, and their existing research rows.
 - Restrict research exports to an administrator-only offline job. There is no
   public export endpoint.
 - Export only pseudonymous, relative-day records. Review aggregate outputs for

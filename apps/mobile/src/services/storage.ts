@@ -4,11 +4,17 @@ import * as SQLite from "expo-sqlite";
 
 import type {
   CheckInCreate,
+  CycleDayRecord,
+  CycleSyncRequest,
   WearableDailyRecord,
   WearablePlatform,
   WearableSyncRequest,
 } from "@/types";
-import { checkInSchema, wearableDailyRecordSchema } from "@/validation";
+import {
+  checkInSchema,
+  cycleDayRecordSchema,
+  wearableDailyRecordSchema,
+} from "@/validation";
 
 const TOKEN_KEY = "whb.access-token";
 const CONSENT_VERSION_KEY = "whb.consent-version";
@@ -27,6 +33,16 @@ interface WearableQueueRow {
 
 interface WearableCacheRow {
   readonly payload: string;
+}
+
+interface CycleQueueRow {
+  readonly sync_id: string;
+  readonly payload: string;
+}
+
+interface CycleCacheRow {
+  readonly observed_date: string;
+  readonly period_status: "spotting" | "flow";
 }
 
 export interface StoredWearableState {
@@ -84,6 +100,22 @@ async function openEncryptedDatabase(): Promise<SQLite.SQLiteDatabase> {
       platform TEXT NOT NULL,
       last_read_at TEXT NOT NULL,
       time_zone TEXT
+    );
+    CREATE TABLE IF NOT EXISTS cycle_sync_queue (
+      sync_id TEXT PRIMARY KEY NOT NULL,
+      payload TEXT NOT NULL,
+      created_at TEXT NOT NULL,
+      attempts INTEGER NOT NULL DEFAULT 0,
+      last_error TEXT
+    );
+    CREATE TABLE IF NOT EXISTS cycle_daily_cache (
+      observed_date TEXT PRIMARY KEY NOT NULL,
+      period_status TEXT NOT NULL CHECK (period_status IN ('spotting', 'flow')),
+      updated_at TEXT NOT NULL
+    );
+    CREATE TABLE IF NOT EXISTS cycle_state (
+      singleton INTEGER PRIMARY KEY NOT NULL CHECK (singleton = 1),
+      enabled INTEGER NOT NULL CHECK (enabled IN (0, 1))
     );
   `);
   const wearableStateColumns = await database.getAllAsync<{ readonly name: string }>(
@@ -326,6 +358,174 @@ export async function wearableQueueCount(): Promise<number> {
   return row?.count ?? 0;
 }
 
+export async function setCycleTrackingEnabled(enabled: boolean): Promise<void> {
+  const database = await getDatabase();
+  await database.runAsync(
+    `INSERT INTO cycle_state (singleton, enabled)
+     VALUES (1, ?)
+     ON CONFLICT(singleton) DO UPDATE SET enabled = excluded.enabled`,
+    enabled ? 1 : 0,
+  );
+}
+
+export async function getCycleTrackingEnabled(): Promise<boolean> {
+  const database = await getDatabase();
+  const row = await database.getFirstAsync<{ readonly enabled: number }>(
+    "SELECT enabled FROM cycle_state WHERE singleton = 1",
+  );
+  return row?.enabled === 1;
+}
+
+export async function cacheCycleDays(
+  records: ReadonlyArray<CycleDayRecord>,
+): Promise<void> {
+  const database = await getDatabase();
+  await database.withTransactionAsync(async () => {
+    for (const record of records) {
+      if (record.period_status === null) {
+        await database.runAsync(
+          "DELETE FROM cycle_daily_cache WHERE observed_date = ?",
+          record.observed_date,
+        );
+        continue;
+      }
+      await database.runAsync(
+        `INSERT INTO cycle_daily_cache (observed_date, period_status, updated_at)
+         VALUES (?, ?, ?)
+         ON CONFLICT(observed_date) DO UPDATE
+         SET period_status = excluded.period_status, updated_at = excluded.updated_at`,
+        record.observed_date,
+        record.period_status,
+        new Date().toISOString(),
+      );
+    }
+  });
+}
+
+export async function replaceCachedCycleDays(
+  records: ReadonlyArray<CycleDayRecord>,
+): Promise<void> {
+  const database = await getDatabase();
+  await database.withTransactionAsync(async () => {
+    await database.runAsync("DELETE FROM cycle_daily_cache");
+    for (const record of records) {
+      if (record.period_status === null) continue;
+      await database.runAsync(
+        `INSERT INTO cycle_daily_cache (observed_date, period_status, updated_at)
+         VALUES (?, ?, ?)`,
+        record.observed_date,
+        record.period_status,
+        new Date().toISOString(),
+      );
+    }
+  });
+}
+
+export async function cachedCycleDays(): Promise<ReadonlyArray<CycleDayRecord>> {
+  const database = await getDatabase();
+  const rows = await database.getAllAsync<CycleCacheRow>(
+    `SELECT observed_date, period_status
+     FROM cycle_daily_cache ORDER BY observed_date ASC`,
+  );
+  return rows.flatMap((row) => {
+    const parsed = cycleDayRecordSchema.safeParse(row);
+    return parsed.success ? [parsed.data] : [];
+  });
+}
+
+export async function cachedCycleDay(
+  observedDate: string,
+): Promise<CycleDayRecord | null> {
+  const database = await getDatabase();
+  const row = await database.getFirstAsync<CycleCacheRow>(
+    `SELECT observed_date, period_status
+     FROM cycle_daily_cache WHERE observed_date = ?`,
+    observedDate,
+  );
+  if (!row) return null;
+  const parsed = cycleDayRecordSchema.safeParse(row);
+  return parsed.success ? parsed.data : null;
+}
+
+export async function enqueueCycleSync(payload: CycleSyncRequest): Promise<void> {
+  const database = await getDatabase();
+  await database.runAsync(
+    `INSERT OR IGNORE INTO cycle_sync_queue (sync_id, payload, created_at)
+     VALUES (?, ?, ?)`,
+    payload.sync_id,
+    JSON.stringify(payload),
+    new Date().toISOString(),
+  );
+}
+
+export async function queuedCycleSyncs(): Promise<ReadonlyArray<CycleSyncRequest>> {
+  const database = await getDatabase();
+  const rows = await database.getAllAsync<CycleQueueRow>(
+    "SELECT sync_id, payload FROM cycle_sync_queue ORDER BY created_at ASC",
+  );
+  return rows.flatMap((row) => {
+    try {
+      const value = JSON.parse(row.payload) as unknown;
+      if (
+        typeof value !== "object" ||
+        value === null ||
+        !("sync_id" in value) ||
+        !("local_today" in value) ||
+        !("records" in value) ||
+        value.sync_id !== row.sync_id ||
+        typeof value.local_today !== "string" ||
+        !Array.isArray(value.records)
+      ) {
+        return [];
+      }
+      const records = value.records.flatMap((record) => {
+        const parsed = cycleDayRecordSchema.safeParse(record);
+        return parsed.success ? [parsed.data] : [];
+      });
+      if (records.length !== value.records.length || records.length < 1) return [];
+      return [{ sync_id: row.sync_id, local_today: value.local_today, records }];
+    } catch {
+      return [];
+    }
+  });
+}
+
+export async function markCycleSyncComplete(syncId: string): Promise<void> {
+  const database = await getDatabase();
+  await database.runAsync("DELETE FROM cycle_sync_queue WHERE sync_id = ?", syncId);
+}
+
+export async function markCycleSyncFailed(
+  syncId: string,
+  message: string,
+): Promise<void> {
+  const database = await getDatabase();
+  await database.runAsync(
+    `UPDATE cycle_sync_queue
+     SET attempts = attempts + 1, last_error = ?
+     WHERE sync_id = ?`,
+    message.slice(0, 240),
+    syncId,
+  );
+}
+
+export async function cycleQueueCount(): Promise<number> {
+  const database = await getDatabase();
+  const row = await database.getFirstAsync<{ readonly count: number }>(
+    "SELECT COUNT(*) AS count FROM cycle_sync_queue",
+  );
+  return row?.count ?? 0;
+}
+
+export async function clearLocalCycleData(): Promise<void> {
+  const database = await getDatabase();
+  await database.execAsync(`
+    DELETE FROM cycle_sync_queue;
+    DELETE FROM cycle_daily_cache;
+    DELETE FROM cycle_state;
+  `);
+}
+
 export async function saveWearableState(
   platform: WearablePlatform,
   lastReadAt: string,
@@ -368,5 +568,8 @@ export async function clearLocalHealthData(): Promise<void> {
     DELETE FROM wearable_sync_queue;
     DELETE FROM wearable_daily_cache;
     DELETE FROM wearable_state;
+    DELETE FROM cycle_sync_queue;
+    DELETE FROM cycle_daily_cache;
+    DELETE FROM cycle_state;
   `);
 }
