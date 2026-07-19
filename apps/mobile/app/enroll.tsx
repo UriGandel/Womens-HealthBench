@@ -148,7 +148,7 @@ export default function EnrollScreen(): React.ReactElement {
   const heading = [
     {
       title: "Tomorrow, gently.",
-      subtitle: "A small daily signal for planning around higher-symptom days.",
+      subtitle: "A small daily signal for planning around high-symptom days.",
     },
     {
       title: "Research consent",

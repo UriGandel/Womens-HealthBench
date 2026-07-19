@@ -17,3 +17,4 @@ apps/mobile/ios/
 benchmark/artifacts/*
 !benchmark/artifacts/.gitkeep
 
+.aider*

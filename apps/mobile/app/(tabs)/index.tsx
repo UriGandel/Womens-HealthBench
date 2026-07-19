@@ -74,8 +74,8 @@ export default function ForecastScreen(): React.ReactElement {
         <Text style={styles.instrumentTitle}>
           {ready
             ? percentage >= 50
-              ? "A higher-symptom day is more likely"
-              : "A higher-symptom day is less likely"
+              ? "A high-symptom day is more likely"
+              : "A high-symptom day is less likely"
             : checkedInToday
               ? "Today’s check-in is saved"
               : "Check in daily to unlock your forecast"}
@@ -84,7 +84,7 @@ export default function ForecastScreen(): React.ReactElement {
           <Text style={styles.instrumentDetail}>
             {checkedInToday
               ? "Come back tomorrow for the next one."
-              : "It estimates tomorrow's chance of a higher-symptom day."}
+              : "It estimates tomorrow's chance of a high-symptom day."}
           </Text>
         ) : null}
 
