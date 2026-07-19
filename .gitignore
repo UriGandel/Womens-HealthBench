@@ -56,3 +56,4 @@ apps/mobile/ios/
 # Generated benchmark output; keep the directory in Git
 benchmark/artifacts/*
 !benchmark/artifacts/.gitkeep
+.aider*

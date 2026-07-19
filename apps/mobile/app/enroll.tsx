@@ -185,7 +185,7 @@ export default function EnrollScreen(): React.ReactElement {
           {step === 0 ? <Button label="I agree" onPress={goNext} /> : null}
           {step === 1 ? (
             <Button
-              label={Platform.OS === "web" ? "Join browser preview" : "Authenticate and join"}
+              label="Enter"
               onPress={() => void submit()}
               loading={loading}
             />
@@ -223,7 +223,7 @@ export default function EnrollScreen(): React.ReactElement {
   const heading = [
     {
       title: "Tomorrow, gently.",
-      subtitle: "A small daily signal for planning around higher-symptom days.",
+      subtitle: "A small daily signal for planning around high-symptom days.",
     },
     {
       title: "Research consent",
