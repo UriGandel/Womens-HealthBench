@@ -19,7 +19,7 @@ export const colors = {
 } as const;
 
 export const type = {
-  display: Platform.select({ ios: "Georgia", android: "serif", default: "serif" }),
+  display: "Lora_600SemiBold",
   body: Platform.select({ ios: "Avenir Next", android: "sans-serif", default: "sans-serif" }),
   mono: Platform.select({ ios: "Menlo", android: "monospace", default: "monospace" }),
 } as const;

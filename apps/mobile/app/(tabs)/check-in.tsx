@@ -241,7 +241,6 @@ const styles = StyleSheet.create({
     fontFamily: type.display,
     fontSize: 39,
     lineHeight: 44,
-    fontWeight: "600",
     letterSpacing: -0.8,
   },
   subtitle: {
@@ -262,7 +261,6 @@ const styles = StyleSheet.create({
     color: colors.ink,
     fontFamily: type.display,
     fontSize: 22,
-    fontWeight: "600",
   },
   fieldLabel: {
     color: colors.ink,

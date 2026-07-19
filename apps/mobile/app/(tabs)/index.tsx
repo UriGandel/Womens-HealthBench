@@ -167,7 +167,6 @@ const styles = StyleSheet.create({
     color: colors.ink,
     fontFamily: type.display,
     fontSize: 22,
-    fontWeight: "600",
     marginTop: 3,
   },
   status: {
@@ -245,7 +244,6 @@ const styles = StyleSheet.create({
     fontFamily: type.display,
     fontSize: 47,
     lineHeight: 54,
-    fontWeight: "600",
   },
   confidence: {
     color: colors.amberSoft,
@@ -272,7 +270,6 @@ const styles = StyleSheet.create({
     fontFamily: type.display,
     fontSize: 24,
     lineHeight: 29,
-    fontWeight: "600",
     textAlign: "center",
   },
   instrumentDetail: {

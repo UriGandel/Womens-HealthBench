@@ -182,7 +182,6 @@ const styles = StyleSheet.create({
     fontFamily: type.display,
     fontSize: 56,
     lineHeight: 58,
-    fontWeight: "600",
     letterSpacing: -1.8,
   },
   subtitle: {
@@ -212,7 +211,6 @@ const styles = StyleSheet.create({
     color: colors.ink,
     fontFamily: type.display,
     fontSize: 21,
-    fontWeight: "600",
   },
   optional: {
     color: colors.plum,
