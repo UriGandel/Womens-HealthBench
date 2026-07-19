@@ -40,7 +40,8 @@
           "useSQLCipher": true
         }
       ],
-      "expo-health-data"
+      "expo-health-data",
+      "expo-font"
     ],
     "experiments": {
       "typedRoutes": true

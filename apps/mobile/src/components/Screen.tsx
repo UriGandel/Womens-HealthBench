@@ -1,4 +1,4 @@
-import type { PropsWithChildren } from "react";
+import type { PropsWithChildren, ReactNode } from "react";
 import {
   KeyboardAvoidingView,
   Platform,
@@ -12,9 +12,16 @@ import { colors } from "@/theme";
 
 interface ScreenProps extends PropsWithChildren {
   readonly scroll?: boolean;
+  readonly header?: ReactNode;
+  readonly footer?: ReactNode;
 }
 
-export function Screen({ children, scroll = true }: ScreenProps): React.ReactElement {
+export function Screen({
+  children,
+  scroll = true,
+  header,
+  footer,
+}: ScreenProps): React.ReactElement {
   const content = scroll ? (
     <ScrollView
       contentContainerStyle={styles.content}
@@ -28,12 +35,18 @@ export function Screen({ children, scroll = true }: ScreenProps): React.ReactEle
   );
 
   return (
-    <SafeAreaView style={styles.safe} edges={["top"]}>
+    <SafeAreaView style={styles.safe} edges={footer ? ["top", "bottom"] : ["top"]}>
       <KeyboardAvoidingView
         behavior={Platform.OS === "ios" ? "padding" : undefined}
         style={styles.fill}
       >
+        {header ? (
+          <View style={styles.headerBand}>
+            <View style={styles.headerInner}>{header}</View>
+          </View>
+        ) : null}
         {content}
+        {footer ? <View style={styles.footer}>{footer}</View> : null}
       </KeyboardAvoidingView>
     </SafeAreaView>
   );
@@ -55,5 +68,27 @@ const styles = StyleSheet.create({
     paddingTop: 18,
     paddingBottom: 48,
     gap: 18,
+  },
+  footer: {
+    width: "100%",
+    maxWidth: 520,
+    alignSelf: "center",
+    paddingHorizontal: 22,
+    paddingTop: 12,
+    paddingBottom: 12,
+    gap: 10,
+    backgroundColor: colors.fog,
+  },
+  headerBand: {
+    backgroundColor: colors.white,
+  },
+  headerInner: {
+    width: "100%",
+    maxWidth: 520,
+    alignSelf: "center",
+    paddingHorizontal: 22,
+    paddingTop: 20,
+    paddingBottom: 18,
+    gap: 12,
   },
 });

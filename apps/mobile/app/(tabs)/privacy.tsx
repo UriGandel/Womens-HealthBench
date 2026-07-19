@@ -16,6 +16,7 @@ import { colors, radius, type } from "@/theme";
 export default function PrivacyScreen(): React.ReactElement {
   const {
     account,
+    forecast,
     pendingCount,
     isOnline,
     deleteAccount,
@@ -49,7 +50,6 @@ export default function PrivacyScreen(): React.ReactElement {
   return (
     <Screen>
       <View style={styles.header}>
-        <Text style={styles.eyebrow}>PRIVACY CONTROL</Text>
         <Text style={styles.title}>Your data stays yours.</Text>
         <Text style={styles.subtitle}>
           Research participation continues while your account is active.
@@ -118,16 +118,6 @@ export default function PrivacyScreen(): React.ReactElement {
         </Text>
       </View>
 
-      <View style={styles.card}>
-        <Text style={styles.cardLabel}>SAFE USE</Text>
-        <Text style={styles.listText}>
-          Forecasts are experimental wellness information. They are not diagnoses, do not identify causes, and should never delay professional care.
-        </Text>
-        <Text style={styles.consentVersion}>
-          CONSENT VERSION {account?.consent_version ?? "—"}
-        </Text>
-      </View>
-
       <View style={styles.dangerZone}>
         <Text style={styles.dangerTitle}>Delete everything</Text>
         <Text style={styles.detail}>
@@ -141,6 +131,11 @@ export default function PrivacyScreen(): React.ReactElement {
           onPress={confirmDelete}
         />
       </View>
+
+      <Text style={styles.consentVersion}>
+        CONSENT {account?.consent_version ?? "—"}
+        {forecast?.model_version ? ` · ${forecast.model_version}` : ""}
+      </Text>
     </Screen>
   );
 }
@@ -151,18 +146,11 @@ const styles = StyleSheet.create({
     paddingTop: 10,
     paddingBottom: 6,
   },
-  eyebrow: {
-    color: colors.mineral,
-    fontFamily: type.mono,
-    fontSize: 10,
-    letterSpacing: 1.1,
-  },
   title: {
     color: colors.ink,
     fontFamily: type.display,
     fontSize: 39,
     lineHeight: 44,
-    fontWeight: "600",
     letterSpacing: -0.8,
   },
   subtitle: {
@@ -191,7 +179,6 @@ const styles = StyleSheet.create({
     color: colors.ink,
     fontFamily: type.display,
     fontSize: 21,
-    fontWeight: "600",
   },
   detail: {
     color: colors.slate,
@@ -239,7 +226,6 @@ const styles = StyleSheet.create({
     color: colors.ink,
     fontFamily: type.display,
     fontSize: 28,
-    fontWeight: "600",
   },
   metricLabel: {
     color: colors.muted,
@@ -262,6 +248,7 @@ const styles = StyleSheet.create({
     fontFamily: type.mono,
     fontSize: 9,
     letterSpacing: 0.7,
+    textAlign: "center",
   },
   dangerZone: {
     backgroundColor: colors.dangerSoft,
@@ -275,6 +262,5 @@ const styles = StyleSheet.create({
     color: colors.danger,
     fontFamily: type.display,
     fontSize: 21,
-    fontWeight: "600",
   },
 });

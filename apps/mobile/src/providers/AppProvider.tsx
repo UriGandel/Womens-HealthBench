@@ -67,6 +67,7 @@ interface AppContextValue {
   readonly isRefreshing: boolean;
   readonly isHealthSyncing: boolean;
   readonly unlockApp: () => Promise<Result<void>>;
+  readonly lastCheckInDate: string | null;
   readonly enrollUser: (payload: EnrollRequest) => Promise<Result<void>>;
   readonly acceptCurrentConsent: () => Promise<Result<void>>;
   readonly submitCheckIn: (payload: CheckInCreate) => Promise<Result<void>>;
@@ -95,6 +96,7 @@ export function AppProvider({ children }: PropsWithChildren): React.ReactElement
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [isHealthSyncing, setIsHealthSyncing] = useState(false);
   const backgroundedAt = useRef<number | null>(null);
+  const [lastCheckInDate, setLastCheckInDate] = useState<string | null>(null);
   const router = useRouter();
   const segments = useSegments();
 
@@ -105,6 +107,7 @@ export function AppProvider({ children }: PropsWithChildren): React.ReactElement
     setHasCurrentConsent(null);
     setForecast(null);
     setAccount(null);
+    setLastCheckInDate(null);
     setWearablePendingCount(0);
   }, []);
 
@@ -292,6 +295,7 @@ export function AppProvider({ children }: PropsWithChildren): React.ReactElement
       try {
         await enqueueCheckIn(payload);
         setPendingCount(await queueCount());
+        setLastCheckInDate(payload.observed_date);
         if (token && isOnline) await refresh();
         return { ok: true, value: undefined };
       } catch {
@@ -403,6 +407,7 @@ export function AppProvider({ children }: PropsWithChildren): React.ReactElement
       isRefreshing,
       isHealthSyncing,
       unlockApp,
+      lastCheckInDate,
       enrollUser,
       acceptCurrentConsent,
       submitCheckIn,
@@ -427,6 +432,7 @@ export function AppProvider({ children }: PropsWithChildren): React.ReactElement
       isOnline,
       isRefreshing,
       isHealthSyncing,
+      lastCheckInDate,
       pendingCount,
       refresh,
       storageError,
