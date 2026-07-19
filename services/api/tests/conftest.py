@@ -47,7 +47,7 @@ def enroll(client: TestClient):
                 "adult_confirmed": True,
                 "operational_consent": True,
                 "research_consent": True,
-                "consent_version": "2026-07-19-health-v1",
+                "consent_version": "2026-07-19-intraday-cycle-v2",
             },
         )
         assert response.status_code == 201, response.text

@@ -9,6 +9,7 @@ import type {
   EnrollRequest,
   EnrollResponse,
   ForecastResponse,
+  PhaseForecastResponse,
   Result,
   WearableDeleteResponse,
   WearableIntervalSyncRequest,
@@ -24,6 +25,7 @@ import {
   cycleTrackingSummarySchema,
   enrollResponseSchema,
   forecastResponseSchema,
+  phaseForecastResponseSchema,
   messageResponseSchema,
   wearableDeleteResponseSchema,
   wearableIntervalSyncResponseSchema,
@@ -108,6 +110,18 @@ export function getForecast(token: string): Promise<Result<ForecastResponse>> {
     "/v1/forecast",
     { method: "GET" },
     forecastResponseSchema,
+    token,
+  );
+}
+
+export function getPhaseForecast(
+  token: string,
+  targetDate: string,
+): Promise<Result<PhaseForecastResponse>> {
+  return request<PhaseForecastResponse>(
+    `/v1/research/phase-forecast?target_date=${encodeURIComponent(targetDate)}`,
+    { method: "GET" },
+    phaseForecastResponseSchema,
     token,
   );
 }

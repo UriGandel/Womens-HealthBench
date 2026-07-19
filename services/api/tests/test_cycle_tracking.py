@@ -160,6 +160,116 @@ def test_cycle_access_physically_prunes_expired_history(
         assert [day.observed_date for day in stored] == [today - timedelta(days=119)]
 
 
+def test_checkin_bleeding_history_builds_phase_calendar_without_history_opt_in(
+    client: TestClient,
+    enroll,
+) -> None:
+    token = enroll()
+    today = date.today()
+    starts = [today - timedelta(days=56), today - timedelta(days=28), today]
+    for index, observed_date in enumerate(starts):
+        payload = checkin_payload(
+            f"phase-checkin-{index:02d}",
+            observed_date,
+        )
+        payload["period_status"] = "flow"
+        response = client.post(
+            "/v1/check-ins",
+            json=payload,
+            headers=auth(token),
+        )
+        assert response.status_code == 201, response.text
+
+    response = client.get(
+        "/v1/cycle-tracking",
+        params={"local_today": today.isoformat()},
+        headers=auth(token),
+    )
+    assert response.status_code == 200
+    summary = response.json()
+    assert summary["enabled"] is False
+    assert [day["period_status"] for day in summary["days"]] == ["flow"] * 3
+    assert summary["cycle_start_count"] == 3
+    assert summary["prediction_status"] == "ready"
+    assert summary["prediction_confidence"] in {"medium", "high"}
+    assert len(summary["predicted_period_windows"]) == 2
+    assert {
+        day["phase"] for day in summary["phase_days"]
+    } == {"menstrual", "follicular", "ovulatory", "luteal"}
+    assert max(date.fromisoformat(day["observed_date"]) for day in summary["phase_days"]) <= (
+        today + timedelta(days=90)
+    )
+
+
+def test_variable_cycle_history_suppresses_phase_projection(
+    client: TestClient,
+    enroll,
+) -> None:
+    token = enroll()
+    today = date.today()
+    starts = [today - timedelta(days=80), today - timedelta(days=60), today]
+    for index, observed_date in enumerate(starts):
+        payload = checkin_payload(
+            f"variable-phase-{index:02d}",
+            observed_date,
+        )
+        payload["period_status"] = "flow"
+        assert client.post(
+            "/v1/check-ins",
+            json=payload,
+            headers=auth(token),
+        ).status_code == 201
+
+    summary = client.get(
+        "/v1/cycle-tracking",
+        params={"local_today": today.isoformat()},
+        headers=auth(token),
+    ).json()
+    assert summary["prediction_status"] == "variable"
+    assert summary["phase_days"] == []
+    assert summary["predicted_period_windows"] == []
+
+
+def test_history_none_correction_overrides_calendar_but_not_checkin_research(
+    client: TestClient,
+    enroll,
+    session_factory,
+) -> None:
+    token = enroll()
+    today = date.today()
+    payload = checkin_payload("cycle-none-override", today)
+    payload["period_status"] = "flow"
+    assert client.post(
+        "/v1/check-ins",
+        json=payload,
+        headers=auth(token),
+    ).status_code == 201
+    enable(client, token)
+
+    correction = sync(
+        client,
+        token,
+        "cycle-none-correction",
+        [{"observed_date": today.isoformat(), "period_status": None}],
+    )
+    assert correction.status_code == 200
+    assert correction.json()["deleted_days"] == 1
+    summary = client.get(
+        "/v1/cycle-tracking",
+        params={"local_today": today.isoformat()},
+        headers=auth(token),
+    ).json()
+    assert summary["days"] == []
+
+    with session_factory() as session:
+        operational = session.scalar(select(CycleDay))
+        research = session.scalar(select(ResearchEvent))
+        assert operational is not None
+        assert operational.period_status == "none"
+        assert research is not None
+        assert research.period_status == "flow"
+
+
 def test_cycle_sync_is_idempotent_editable_and_isolated(
     client: TestClient, enroll, session_factory
 ) -> None:

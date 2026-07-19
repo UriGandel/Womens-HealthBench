@@ -25,7 +25,18 @@ from app.models import (
     ParticipantLink,
     WearableConnection,
     WearableDailySummary,
+    WearableIntervalSummary,
+    WearableIntervalSyncReceipt,
     WearableSyncReceipt,
+)
+from app.phase_forecasting import (
+    PHASE_CLASSES,
+    PHASE_DISCLAIMER,
+    V01_FEATURE_NAMES,
+    V02_FEATURE_NAMES,
+    load_phase_model,
+    predict_v01,
+    predict_v02,
 )
 from app.research import (
     current_consent,
@@ -36,6 +47,9 @@ from app.research import (
 )
 from app.schemas import (
     AccountSummary,
+    BroadPhaseModelMetadata,
+    BroadPhasePredictionRequest,
+    BroadPhasePredictionResponse,
     CheckInCreate,
     CheckInResponse,
     ConsentResponse,
@@ -49,7 +63,10 @@ from app.schemas import (
     EnrollResponse,
     ForecastResponse,
     MessageResponse,
+    PhaseForecastResponse,
     WearableDeleteResponse,
+    WearableIntervalSyncRequest,
+    WearableIntervalSyncResponse,
     WearableSyncRequest,
     WearableSyncResponse,
 )
@@ -58,8 +75,16 @@ settings = get_settings()
 
 
 @asynccontextmanager
-async def lifespan(_: FastAPI):
+async def lifespan(api: FastAPI):
     create_tables()
+    api.state.phase_model_v01 = load_phase_model(
+        settings.phase_model_v01_path,
+        V01_FEATURE_NAMES,
+    )
+    api.state.phase_model_v02 = load_phase_model(
+        settings.phase_model_v02_path,
+        V02_FEATURE_NAMES,
+    )
     yield
 
 
@@ -343,6 +368,76 @@ def create_app() -> FastAPI:
                 cycle_status = matching_cycle_day.period_status
         return build_forecast(checkins, cycle_status=cycle_status)
 
+    @api.get(
+        "/v1/models/mcphases-phase-v0.1",
+        response_model=BroadPhaseModelMetadata,
+        tags=["research-models"],
+    )
+    def get_broad_phase_model(request: Request) -> BroadPhaseModelMetadata:
+        model = getattr(request.app.state, "phase_model_v01", None)
+        return BroadPhaseModelMetadata(
+            status="ready" if model is not None else "model_unavailable",
+            feature_names=list(V01_FEATURE_NAMES),
+            output_classes=list(PHASE_CLASSES),
+            disclaimer=PHASE_DISCLAIMER,
+        )
+
+    @api.post(
+        "/v1/models/mcphases-phase-v0.1/predict",
+        response_model=BroadPhasePredictionResponse,
+        tags=["research-models"],
+    )
+    def predict_broad_phase(
+        payload: BroadPhasePredictionRequest,
+        request: Request,
+    ) -> BroadPhasePredictionResponse:
+        if set(payload.features) != set(V01_FEATURE_NAMES):
+            raise HTTPException(
+                status_code=422,
+                detail="Feature names must exactly match the mcPHASES v0.1 contract",
+            )
+        prediction = predict_v01(
+            getattr(request.app.state, "phase_model_v01", None),
+            payload.features,
+        )
+        return BroadPhasePredictionResponse(
+            status=prediction.status,
+            predicted_phase=prediction.predicted_phase,
+            disclaimer=PHASE_DISCLAIMER,
+        )
+
+    @api.get(
+        "/v1/research/phase-forecast",
+        response_model=PhaseForecastResponse,
+        tags=["research-models"],
+    )
+    def get_phase_forecast(
+        target_date: date,
+        request: Request,
+        session: Annotated[Session, Depends(get_session)],
+        account: Annotated[Account, Depends(require_current_consent)],
+    ) -> PhaseForecastResponse:
+        earliest = target_date - timedelta(days=7)
+        rows = session.scalars(
+            select(WearableDailySummary)
+            .where(
+                WearableDailySummary.account_id == account.id,
+                WearableDailySummary.observed_date >= earliest,
+                WearableDailySummary.observed_date < target_date,
+            )
+            .order_by(WearableDailySummary.observed_date.asc())
+        ).all()
+        prediction = predict_v02(
+            getattr(request.app.state, "phase_model_v02", None),
+            list(rows),
+        )
+        return PhaseForecastResponse(
+            status=prediction.status,
+            predicted_phase=prediction.predicted_phase,
+            usable_days=prediction.usable_days,
+            disclaimer=PHASE_DISCLAIMER,
+        )
+
     @api.put(
         "/v1/cycle-tracking",
         response_model=CycleTrackingSummary,
@@ -438,7 +533,27 @@ def create_app() -> FastAPI:
                 )
             )
             if record.period_status is None:
-                if existing_day is not None:
+                matching_checkin = session.scalar(
+                    select(CheckIn.id).where(
+                        CheckIn.account_id == account.id,
+                        CheckIn.observed_date == record.observed_date,
+                        CheckIn.period_status.in_(("spotting", "flow")),
+                    )
+                )
+                if matching_checkin is not None:
+                    if existing_day is None:
+                        session.add(
+                            CycleDay(
+                                account_id=account.id,
+                                observed_date=record.observed_date,
+                                period_status="none",
+                            )
+                        )
+                    else:
+                        existing_day.period_status = "none"
+                        existing_day.updated_at = now
+                    deleted_days += 1
+                elif existing_day is not None:
                     session.delete(existing_day)
                     deleted_days += 1
                 continue
@@ -645,6 +760,140 @@ def create_app() -> FastAPI:
             last_synced_at=now,
         )
 
+    @api.post(
+        "/v1/wearable-intervals:sync",
+        response_model=WearableIntervalSyncResponse,
+        tags=["wearables"],
+    )
+    def sync_wearable_intervals(
+        payload: WearableIntervalSyncRequest,
+        session: Annotated[Session, Depends(get_session)],
+        account: Annotated[Account, Depends(require_current_consent)],
+    ) -> WearableIntervalSyncResponse:
+        utc_today = datetime.now(UTC).date()
+        earliest = utc_today - timedelta(days=31)
+        latest = utc_today + timedelta(days=1)
+        platforms = {record.platform for record in payload.records}
+        if len(platforms) > 1:
+            raise HTTPException(
+                status_code=422,
+                detail="A wearable interval batch must contain a single platform",
+            )
+        for record in payload.records:
+            if record.observed_date < earliest or record.observed_date > latest:
+                raise HTTPException(
+                    status_code=422,
+                    detail="Wearable interval is outside the recent local-calendar window",
+                )
+
+        canonical = json.dumps(
+            payload.model_dump(mode="json"),
+            sort_keys=True,
+            separators=(",", ":"),
+        )
+        payload_hash = hashlib.sha256(canonical.encode()).hexdigest()
+        existing_receipt = session.scalar(
+            select(WearableIntervalSyncReceipt).where(
+                WearableIntervalSyncReceipt.account_id == account.id,
+                WearableIntervalSyncReceipt.sync_id == payload.sync_id,
+            )
+        )
+        if existing_receipt is not None:
+            if existing_receipt.payload_hash != payload_hash:
+                raise HTTPException(
+                    status_code=409,
+                    detail="Sync identifier was already used with a different payload",
+                )
+            connection = account.wearable_connection
+            return WearableIntervalSyncResponse(
+                accepted_intervals=existing_receipt.accepted_intervals,
+                deleted_intervals=existing_receipt.deleted_intervals,
+                duplicate=True,
+                last_synced_at=(
+                    connection.last_synced_at
+                    if connection is not None
+                    else existing_receipt.created_at
+                ),
+            )
+
+        now = datetime.now(UTC)
+        platform = next(iter(platforms))
+        connection = account.wearable_connection
+        if connection is None:
+            connection = WearableConnection(
+                account_id=account.id,
+                platform=platform,
+                connected_at=now,
+                last_synced_at=now,
+            )
+            session.add(connection)
+        else:
+            connection.platform = platform
+            connection.last_synced_at = now
+
+        accepted_intervals = 0
+        deleted_intervals = 0
+        for record in payload.records:
+            existing_interval = session.scalar(
+                select(WearableIntervalSummary).where(
+                    WearableIntervalSummary.account_id == account.id,
+                    WearableIntervalSummary.observed_date == record.observed_date,
+                    WearableIntervalSummary.bucket_start_hour
+                    == record.bucket_start_hour,
+                )
+            )
+            if not record.has_metrics():
+                if existing_interval is not None:
+                    session.delete(existing_interval)
+                    deleted_intervals += 1
+                continue
+            values = record.model_dump(
+                exclude={"observed_date", "bucket_start_hour", "platform"}
+            )
+            if existing_interval is None:
+                session.add(
+                    WearableIntervalSummary(
+                        account_id=account.id,
+                        observed_date=record.observed_date,
+                        bucket_start_hour=record.bucket_start_hour,
+                        platform=record.platform,
+                        **values,
+                    )
+                )
+            else:
+                existing_interval.platform = record.platform
+                for field, value in values.items():
+                    setattr(existing_interval, field, value)
+                existing_interval.updated_at = now
+            accepted_intervals += 1
+
+        session.flush()
+        rebuild_research_timeline(session, account)
+        session.add(
+            WearableIntervalSyncReceipt(
+                account_id=account.id,
+                sync_id=payload.sync_id,
+                payload_hash=payload_hash,
+                accepted_intervals=accepted_intervals,
+                deleted_intervals=deleted_intervals,
+                created_at=now,
+            )
+        )
+        try:
+            session.commit()
+        except IntegrityError as error:
+            session.rollback()
+            raise HTTPException(
+                status_code=409,
+                detail="Wearable interval sync conflicts with an existing batch",
+            ) from error
+        return WearableIntervalSyncResponse(
+            accepted_intervals=accepted_intervals,
+            deleted_intervals=deleted_intervals,
+            duplicate=False,
+            last_synced_at=now,
+        )
+
     @api.delete(
         "/v1/wearable-data",
         response_model=WearableDeleteResponse,
@@ -667,6 +916,16 @@ def create_app() -> FastAPI:
         )
         session.execute(
             delete(WearableSyncReceipt).where(WearableSyncReceipt.account_id == account.id)
+        )
+        session.execute(
+            delete(WearableIntervalSummary).where(
+                WearableIntervalSummary.account_id == account.id
+            )
+        )
+        session.execute(
+            delete(WearableIntervalSyncReceipt).where(
+                WearableIntervalSyncReceipt.account_id == account.id
+            )
         )
         session.execute(
             delete(WearableConnection).where(WearableConnection.account_id == account.id)
@@ -699,6 +958,14 @@ def create_app() -> FastAPI:
             )
             or 0
         )
+        wearable_interval_count = int(
+            session.scalar(
+                select(func.count(WearableIntervalSummary.id)).where(
+                    WearableIntervalSummary.account_id == account.id
+                )
+            )
+            or 0
+        )
         session.execute(
             delete(CycleDay).where(
                 CycleDay.account_id == account.id,
@@ -709,7 +976,10 @@ def create_app() -> FastAPI:
         session.flush()
         cycle_day_count = int(
             session.scalar(
-                select(func.count(CycleDay.id)).where(CycleDay.account_id == account.id)
+                select(func.count(CycleDay.id)).where(
+                    CycleDay.account_id == account.id,
+                    CycleDay.period_status != "none",
+                )
             )
             or 0
         )
@@ -726,6 +996,7 @@ def create_app() -> FastAPI:
             wearable_connected=connection is not None,
             wearable_platform=connection.platform if connection is not None else None,
             wearable_day_count=wearable_day_count,
+            wearable_interval_count=wearable_interval_count,
             wearable_last_synced_at=(
                 connection.last_synced_at if connection is not None else None
             ),

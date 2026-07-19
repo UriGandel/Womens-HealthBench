@@ -52,6 +52,43 @@ export const forecastResponseSchema = z.object({
   disclaimer: z.string(),
 });
 
+const phaseForecastResponseBase = {
+  model_version: z.literal("mcphases-app-common-0.2.0"),
+  usable_days: z.number().int().nonnegative(),
+  required_days: z.literal(4),
+  lookback_days: z.literal(7),
+  disclaimer: z.string(),
+} as const;
+
+export const phaseForecastResponseSchema = z.discriminatedUnion("status", [
+  z
+    .object({
+      ...phaseForecastResponseBase,
+      status: z.literal("ready"),
+      predicted_phase: z.enum([
+        "Fertility",
+        "Follicular",
+        "Luteal",
+        "Menstrual",
+      ]),
+    })
+    .strict(),
+  z
+    .object({
+      ...phaseForecastResponseBase,
+      status: z.literal("insufficient_data"),
+      predicted_phase: z.null(),
+    })
+    .strict(),
+  z
+    .object({
+      ...phaseForecastResponseBase,
+      status: z.literal("model_unavailable"),
+      predicted_phase: z.null(),
+    })
+    .strict(),
+]);
+
 export const accountSummarySchema = z.object({
   consent_current: z.boolean(),
   consent_version: z.string(),

@@ -11,8 +11,19 @@ distributing an internal build to participants.
   rest, encrypted backups, point-in-time recovery, and private network access.
 - Store database and administrator export credentials in a managed secret
   store. Never place them in EAS variables exposed to the client.
+- Mount the two restricted phase-model artifacts outside the repository and set
+  `PHASE_MODEL_V01_PATH` and `PHASE_MODEL_V02_PATH` to those private files.
+  Keep model access covered by the applicable data-use terms. Python 3.12 uses
+  the training-time pandas 2.2.2; Python 3.13 uses pandas 2.2.3, the first
+  compatible patch release. Both runtimes keep scikit-learn 1.6.1 pinned and
+  are model-load tested. Never bake either `.joblib` into a public image layer.
+- The v0.1 metadata and prediction routes are deliberately unauthenticated
+  developer APIs. Put them behind infrastructure-level request-size limits,
+  rate limiting, abuse monitoring, and TLS. CORS is a browser policy, not an
+  authentication or rate-limiting control. The v0.2 endpoint remains protected
+  by participant authentication and current consent.
 - Set a separate `ADMIN_MIGRATION_KEY`. Before deploying consent version
-  `2026-07-19-health-v1`, preview legacy opted-out deletion:
+  `2026-07-19-intraday-cycle-v2`, preview legacy opted-out deletion:
 
   ```bash
   python -m app.migrate_mandatory_research --key "$ADMIN_MIGRATION_KEY"
@@ -63,14 +74,18 @@ these production controls. They must contain synthetic data only.
    deployment using synthetic records.
 4. Confirm `/v1/*` responses use `Cache-Control: no-store` and that one account
    cannot access another account's records.
-5. Run the administrator export into a protected destination and verify the
+5. Confirm each missing or incompatible phase model returns only its own
+   `model_unavailable` state, while `/v1/forecast` and the other phase model
+   remain healthy. Exercise the public v0.1 endpoint without credentials and
+   the v0.2 endpoint both with and without participant authentication.
+6. Run the administrator export into a protected destination and verify the
    schema contains only the documented pseudonymous fields.
-6. Run a clean Expo prebuild and internal EAS development builds. Verify
+7. Run a clean Expo prebuild and internal EAS development builds. Verify
    HealthKit with Apple Watch and Health Connect with Wear OS/compatible
    sources on physical devices, including partial/revoked permissions,
    duplicate sources, cross-midnight sleep, DST/timezone changes, edited or
    deleted records, airplane mode, app restart, and the five-minute lock.
-7. Update App Store privacy disclosures and the Google Play Health Apps/Data
+8. Update App Store privacy disclosures and the Google Play Health Apps/Data
    Safety declarations before any distribution that enables health import.
 
 No app-store or public release is authorized by this configuration.

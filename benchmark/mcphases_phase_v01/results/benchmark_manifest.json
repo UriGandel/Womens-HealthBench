@@ -1,0 +1,96 @@
+{
+  "benchmark_version": "0.1.0",
+  "dropped_all_missing_training_features": [],
+  "examples_after_eligibility": 5398,
+  "included_files": [
+    {
+      "file": "hormones_and_selfreport.csv",
+      "sha256": "d1c35ede822bd91cc64b8cec9e4fb325dfc0488982730f4ce774ee2f8f3a2ab5",
+      "size_bytes": 696070
+    },
+    {
+      "file": "active_minutes.csv",
+      "sha256": "cdcea2fe01189dbfabbd8ede7637d6f04d8d20a0dc1b193a2fedf02df12d47fd",
+      "size_bytes": 163418
+    },
+    {
+      "file": "resting_heart_rate.csv",
+      "sha256": "168c4c133c6fefc2d5e183bd517ed8eb75c5999f3bf2e1e679d335f7e9eb4a80",
+      "size_bytes": 704587
+    },
+    {
+      "file": "heart_rate_variability_details.csv",
+      "sha256": "64af09a6b012bdd9ad046b369b293e69cd603f62462dc5057b308e5a34ce3280",
+      "size_bytes": 24540662
+    },
+    {
+      "file": "sleep.csv",
+      "sha256": "fd16842645385efe6801c5037a9aa64625d584dec26c19dcac84908d91fbf0a2",
+      "size_bytes": 54722273
+    },
+    {
+      "file": "respiratory_rate_summary.csv",
+      "sha256": "bada043af770739545da30444e499c626cf5b88ff120e015cca3bbbc51bc6481",
+      "size_bytes": 553304
+    },
+    {
+      "file": "computed_temperature.csv",
+      "sha256": "999112dd4b1eed88b7cc95f3b893f68f6c96690cb3c8180aa39c23f2902a50ef",
+      "size_bytes": 757037
+    }
+  ],
+  "lookback_days": 7,
+  "minimum_observed_lookback_days": 4,
+  "model_feature_count": 161,
+  "participants_after_eligibility": 42,
+  "private_outputs_not_in_results_zip": [
+    "participant-day feature table",
+    "participant split manifest",
+    "row-level predictions",
+    "serialized models"
+  ],
+  "seed": 20260719,
+  "source_access": "restricted",
+  "source_dataset": "mcPHASES v1.0.0",
+  "source_doi": "10.13026/zx6a-2c81",
+  "split_summary": {
+    "test": {
+      "class_counts": {
+        "Fertility": 281,
+        "Follicular": 326,
+        "Luteal": 363,
+        "Menstrual": 199
+      },
+      "examples": 1169,
+      "participants": 9
+    },
+    "train": {
+      "class_counts": {
+        "Fertility": 716,
+        "Follicular": 834,
+        "Luteal": 1071,
+        "Menstrual": 579
+      },
+      "examples": 3200,
+      "participants": 25
+    },
+    "validation": {
+      "class_counts": {
+        "Fertility": 226,
+        "Follicular": 160,
+        "Luteal": 407,
+        "Menstrual": 236
+      },
+      "examples": 1029,
+      "participants": 8
+    }
+  },
+  "target_source_counts_before_eligibility": {
+    "<MISSING>": 1,
+    "Fertility": 1281,
+    "Follicular": 1386,
+    "Luteal": 1912,
+    "Menstrual": 1079
+  },
+  "task": "current-day four-class phase prediction from prior passive summaries"
+}

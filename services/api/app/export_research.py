@@ -7,7 +7,7 @@ from pathlib import Path
 from sqlalchemy import select
 
 from app.database import SessionLocal
-from app.models import ResearchEvent, ResearchWearableDay
+from app.models import ResearchEvent, ResearchWearableDay, ResearchWearableInterval
 
 EXPORT_FIELDS = (
     "schema_version",
@@ -35,6 +35,28 @@ EXPORT_FIELDS = (
     "respiratory_rate_bpm",
     "oxygen_saturation_pct",
     "peripheral_temperature_delta_c",
+    "source",
+)
+
+INTERVAL_EXPORT_FIELDS = (
+    "schema_version",
+    "participant_id",
+    "day_in_study",
+    "bucket_index",
+    "steps",
+    "activity_minutes",
+    "active_energy_kcal",
+    "heart_rate_avg_bpm",
+    "heart_rate_min_bpm",
+    "heart_rate_max_bpm",
+    "heart_rate_sample_count",
+    "hrv_avg_ms",
+    "hrv_sample_count",
+    "hrv_method",
+    "respiratory_rate_avg_bpm",
+    "respiratory_rate_sample_count",
+    "oxygen_saturation_avg_pct",
+    "oxygen_saturation_sample_count",
     "source",
 )
 
@@ -135,9 +157,35 @@ def export_records(
     return [merged[key] for key in sorted(merged)]
 
 
+def export_interval_record(row: ResearchWearableInterval) -> dict[str, object]:
+    """Export only six-hour pseudonymous aggregates, never local dates or timestamps."""
+    return {
+        "schema_version": "1.0.0",
+        "participant_id": row.research_id,
+        "day_in_study": row.day_in_study,
+        "bucket_index": row.bucket_index,
+        "steps": row.steps,
+        "activity_minutes": row.activity_minutes,
+        "active_energy_kcal": row.active_energy_kcal,
+        "heart_rate_avg_bpm": row.heart_rate_avg_bpm,
+        "heart_rate_min_bpm": row.heart_rate_min_bpm,
+        "heart_rate_max_bpm": row.heart_rate_max_bpm,
+        "heart_rate_sample_count": row.heart_rate_sample_count,
+        "hrv_avg_ms": row.hrv_avg_ms,
+        "hrv_sample_count": row.hrv_sample_count,
+        "hrv_method": row.hrv_method,
+        "respiratory_rate_avg_bpm": row.respiratory_rate_avg_bpm,
+        "respiratory_rate_sample_count": row.respiratory_rate_sample_count,
+        "oxygen_saturation_avg_pct": row.oxygen_saturation_avg_pct,
+        "oxygen_saturation_sample_count": row.oxygen_saturation_sample_count,
+        "source": "private-alpha",
+    }
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="Export private pseudonymous research rows")
     parser.add_argument("--output", required=True, type=Path)
+    parser.add_argument("--interval-output", type=Path)
     parser.add_argument("--key", required=True)
     parser.add_argument("--acknowledge-private", action="store_true")
     args = parser.parse_args()
@@ -161,13 +209,29 @@ def main() -> None:
             )
         ).all()
         rows = export_records(list(checkin_rows), list(wearable_rows))
+        interval_rows = session.scalars(
+            select(ResearchWearableInterval).order_by(
+                ResearchWearableInterval.research_id,
+                ResearchWearableInterval.day_in_study,
+                ResearchWearableInterval.bucket_index,
+            )
+        ).all()
 
     args.output.parent.mkdir(parents=True, exist_ok=True)
     with args.output.open("w", newline="", encoding="utf-8") as handle:
         writer = csv.DictWriter(handle, fieldnames=EXPORT_FIELDS)
         writer.writeheader()
         writer.writerows(rows)
+    interval_output = args.interval_output or args.output.with_name(
+        f"{args.output.stem}-intervals{args.output.suffix}"
+    )
+    interval_output.parent.mkdir(parents=True, exist_ok=True)
+    with interval_output.open("w", newline="", encoding="utf-8") as handle:
+        writer = csv.DictWriter(handle, fieldnames=INTERVAL_EXPORT_FIELDS)
+        writer.writeheader()
+        writer.writerows(export_interval_record(row) for row in interval_rows)
     print(f"Exported {len(rows)} private rows to {args.output}")
+    print(f"Exported {len(interval_rows)} private interval rows to {interval_output}")
 
 
 if __name__ == "__main__":

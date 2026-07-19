@@ -6,8 +6,11 @@ from sqlalchemy.schema import CreateColumn
 from app.database import Base, engine
 from app.models import (
     ResearchWearableDay,
+    ResearchWearableInterval,
     WearableConnection,
     WearableDailySummary,
+    WearableIntervalSummary,
+    WearableIntervalSyncReceipt,
     WearableSyncReceipt,
 )
 
@@ -16,6 +19,9 @@ WEARABLE_TABLES = (
     WearableDailySummary.__table__,
     WearableSyncReceipt.__table__,
     ResearchWearableDay.__table__,
+    WearableIntervalSummary.__table__,
+    WearableIntervalSyncReceipt.__table__,
+    ResearchWearableInterval.__table__,
 )
 
 ADDITIVE_COLUMNS = (

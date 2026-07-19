@@ -54,6 +54,32 @@ export interface ForecastResponse {
   readonly disclaimer: string;
 }
 
+export type ResearchPhase =
+  | "Fertility"
+  | "Follicular"
+  | "Luteal"
+  | "Menstrual";
+
+interface PhaseForecastResponseBase {
+  readonly model_version: string;
+  readonly usable_days: number;
+  readonly required_days: number;
+  readonly lookback_days: number;
+  readonly disclaimer: string;
+}
+
+export type PhaseForecastResponse = PhaseForecastResponseBase &
+  (
+    | {
+        readonly status: "ready";
+        readonly predicted_phase: ResearchPhase;
+      }
+    | {
+        readonly status: "insufficient_data" | "model_unavailable";
+        readonly predicted_phase: null;
+      }
+  );
+
 export interface AccountSummary {
   readonly consent_current: boolean;
   readonly consent_version: string;

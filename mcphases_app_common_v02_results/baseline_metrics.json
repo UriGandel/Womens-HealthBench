@@ -1,0 +1,545 @@
+{
+  "class_prior": {
+    "test": {
+      "accuracy": 0.31052181,
+      "balanced_accuracy": 0.25,
+      "class_counts": {
+        "Fertility": 281,
+        "Follicular": 326,
+        "Luteal": 363,
+        "Menstrual": 199
+      },
+      "class_order": [
+        "Fertility",
+        "Follicular",
+        "Luteal",
+        "Menstrual"
+      ],
+      "classification_report": {
+        "Fertility": {
+          "f1-score": 0.0,
+          "precision": 0.0,
+          "recall": 0.0,
+          "support": 281.0
+        },
+        "Follicular": {
+          "f1-score": 0.0,
+          "precision": 0.0,
+          "recall": 0.0,
+          "support": 326.0
+        },
+        "Luteal": {
+          "f1-score": 0.47389034,
+          "precision": 0.31052181,
+          "recall": 1.0,
+          "support": 363.0
+        },
+        "Menstrual": {
+          "f1-score": 0.0,
+          "precision": 0.0,
+          "recall": 0.0,
+          "support": 199.0
+        },
+        "accuracy": 0.31052181,
+        "macro avg": {
+          "f1-score": 0.11847258,
+          "precision": 0.07763045,
+          "recall": 0.25,
+          "support": 1169.0
+        },
+        "weighted avg": {
+          "f1-score": 0.14715329,
+          "precision": 0.0964238,
+          "recall": 0.31052181,
+          "support": 1169.0
+        }
+      },
+      "confusion_matrix": [
+        [
+          0,
+          0,
+          281,
+          0
+        ],
+        [
+          0,
+          0,
+          326,
+          0
+        ],
+        [
+          0,
+          0,
+          363,
+          0
+        ],
+        [
+          0,
+          0,
+          199,
+          0
+        ]
+      ],
+      "examples": 1169,
+      "log_loss": 1.36579937,
+      "macro_f1": 0.11847258,
+      "participant_bootstrap": {
+        "macro_f1_ci95": [
+          0.10826352,
+          0.13086685
+        ],
+        "method": "participant cluster bootstrap",
+        "replicates": 1000,
+        "seed": 20260719
+      },
+      "weighted_f1": 0.14715329
+    },
+    "validation": {
+      "accuracy": 0.39552964,
+      "balanced_accuracy": 0.25,
+      "class_counts": {
+        "Fertility": 226,
+        "Follicular": 160,
+        "Luteal": 407,
+        "Menstrual": 236
+      },
+      "class_order": [
+        "Fertility",
+        "Follicular",
+        "Luteal",
+        "Menstrual"
+      ],
+      "classification_report": {
+        "Fertility": {
+          "f1-score": 0.0,
+          "precision": 0.0,
+          "recall": 0.0,
+          "support": 226.0
+        },
+        "Follicular": {
+          "f1-score": 0.0,
+          "precision": 0.0,
+          "recall": 0.0,
+          "support": 160.0
+        },
+        "Luteal": {
+          "f1-score": 0.56685237,
+          "precision": 0.39552964,
+          "recall": 1.0,
+          "support": 407.0
+        },
+        "Menstrual": {
+          "f1-score": 0.0,
+          "precision": 0.0,
+          "recall": 0.0,
+          "support": 236.0
+        },
+        "accuracy": 0.39552964,
+        "macro avg": {
+          "f1-score": 0.14171309,
+          "precision": 0.09888241,
+          "recall": 0.25,
+          "support": 1029.0
+        },
+        "weighted avg": {
+          "f1-score": 0.22420691,
+          "precision": 0.1564437,
+          "recall": 0.39552964,
+          "support": 1029.0
+        }
+      },
+      "confusion_matrix": [
+        [
+          0,
+          0,
+          226,
+          0
+        ],
+        [
+          0,
+          0,
+          160,
+          0
+        ],
+        [
+          0,
+          0,
+          407,
+          0
+        ],
+        [
+          0,
+          0,
+          236,
+          0
+        ]
+      ],
+      "examples": 1029,
+      "log_loss": 1.3629468,
+      "macro_f1": 0.14171309,
+      "weighted_f1": 0.22420691
+    }
+  },
+  "hist_gradient_boosting": {
+    "test": {
+      "accuracy": 0.28485885,
+      "balanced_accuracy": 0.2724749,
+      "class_counts": {
+        "Fertility": 281,
+        "Follicular": 326,
+        "Luteal": 363,
+        "Menstrual": 199
+      },
+      "class_order": [
+        "Fertility",
+        "Follicular",
+        "Luteal",
+        "Menstrual"
+      ],
+      "classification_report": {
+        "Fertility": {
+          "f1-score": 0.28733459,
+          "precision": 0.30645161,
+          "recall": 0.27046263,
+          "support": 281.0
+        },
+        "Follicular": {
+          "f1-score": 0.2283737,
+          "precision": 0.26190476,
+          "recall": 0.20245399,
+          "support": 326.0
+        },
+        "Luteal": {
+          "f1-score": 0.36211031,
+          "precision": 0.32059448,
+          "recall": 0.41597796,
+          "support": 363.0
+        },
+        "Menstrual": {
+          "f1-score": 0.20151134,
+          "precision": 0.2020202,
+          "recall": 0.20100503,
+          "support": 199.0
+        },
+        "accuracy": 0.28485885,
+        "macro avg": {
+          "f1-score": 0.26983249,
+          "precision": 0.27274276,
+          "recall": 0.2724749,
+          "support": 1169.0
+        },
+        "weighted avg": {
+          "f1-score": 0.27950184,
+          "precision": 0.280643,
+          "recall": 0.28485885,
+          "support": 1169.0
+        }
+      },
+      "confusion_matrix": [
+        [
+          76,
+          60,
+          107,
+          38
+        ],
+        [
+          74,
+          66,
+          134,
+          52
+        ],
+        [
+          64,
+          80,
+          151,
+          68
+        ],
+        [
+          34,
+          46,
+          79,
+          40
+        ]
+      ],
+      "examples": 1169,
+      "log_loss": 1.72450161,
+      "macro_f1": 0.26983249,
+      "participant_bootstrap": {
+        "macro_f1_ci95": [
+          0.22475293,
+          0.30512223
+        ],
+        "method": "participant cluster bootstrap",
+        "replicates": 1000,
+        "seed": 20260721
+      },
+      "weighted_f1": 0.27950184
+    },
+    "validation": {
+      "accuracy": 0.27308066,
+      "balanced_accuracy": 0.27473565,
+      "class_counts": {
+        "Fertility": 226,
+        "Follicular": 160,
+        "Luteal": 407,
+        "Menstrual": 236
+      },
+      "class_order": [
+        "Fertility",
+        "Follicular",
+        "Luteal",
+        "Menstrual"
+      ],
+      "classification_report": {
+        "Fertility": {
+          "f1-score": 0.21923937,
+          "precision": 0.22171946,
+          "recall": 0.21681416,
+          "support": 226.0
+        },
+        "Follicular": {
+          "f1-score": 0.24615385,
+          "precision": 0.18983051,
+          "recall": 0.35,
+          "support": 160.0
+        },
+        "Luteal": {
+          "f1-score": 0.34682081,
+          "precision": 0.42105263,
+          "recall": 0.29484029,
+          "support": 407.0
+        },
+        "Menstrual": {
+          "f1-score": 0.24137931,
+          "precision": 0.24561404,
+          "recall": 0.23728814,
+          "support": 236.0
+        },
+        "accuracy": 0.27308066,
+        "macro avg": {
+          "f1-score": 0.26339833,
+          "precision": 0.26955416,
+          "recall": 0.27473565,
+          "support": 1029.0
+        },
+        "weighted avg": {
+          "f1-score": 0.27896433,
+          "precision": 0.30108339,
+          "recall": 0.27308066,
+          "support": 1029.0
+        }
+      },
+      "confusion_matrix": [
+        [
+          49,
+          82,
+          48,
+          47
+        ],
+        [
+          37,
+          56,
+          48,
+          19
+        ],
+        [
+          83,
+          98,
+          120,
+          106
+        ],
+        [
+          52,
+          59,
+          69,
+          56
+        ]
+      ],
+      "examples": 1029,
+      "log_loss": 1.74238876,
+      "macro_f1": 0.26339833,
+      "weighted_f1": 0.27896433
+    }
+  },
+  "multinomial_logistic_regression": {
+    "test": {
+      "accuracy": 0.26005133,
+      "balanced_accuracy": 0.26689085,
+      "class_counts": {
+        "Fertility": 281,
+        "Follicular": 326,
+        "Luteal": 363,
+        "Menstrual": 199
+      },
+      "class_order": [
+        "Fertility",
+        "Follicular",
+        "Luteal",
+        "Menstrual"
+      ],
+      "classification_report": {
+        "Fertility": {
+          "f1-score": 0.25490196,
+          "precision": 0.28384279,
+          "recall": 0.23131673,
+          "support": 281.0
+        },
+        "Follicular": {
+          "f1-score": 0.17794971,
+          "precision": 0.2408377,
+          "recall": 0.14110429,
+          "support": 326.0
+        },
+        "Luteal": {
+          "f1-score": 0.33425414,
+          "precision": 0.33518006,
+          "recall": 0.33333333,
+          "support": 363.0
+        },
+        "Menstrual": {
+          "f1-score": 0.24531516,
+          "precision": 0.18556701,
+          "recall": 0.36180905,
+          "support": 199.0
+        },
+        "accuracy": 0.26005133,
+        "macro avg": {
+          "f1-score": 0.25310524,
+          "precision": 0.26135689,
+          "recall": 0.26689085,
+          "support": 1169.0
+        },
+        "weighted avg": {
+          "f1-score": 0.25645084,
+          "precision": 0.27106168,
+          "recall": 0.26005133,
+          "support": 1169.0
+        }
+      },
+      "confusion_matrix": [
+        [
+          65,
+          45,
+          72,
+          99
+        ],
+        [
+          92,
+          46,
+          104,
+          84
+        ],
+        [
+          49,
+          60,
+          121,
+          133
+        ],
+        [
+          23,
+          40,
+          64,
+          72
+        ]
+      ],
+      "examples": 1169,
+      "log_loss": 1.49418938,
+      "macro_f1": 0.25310524,
+      "participant_bootstrap": {
+        "macro_f1_ci95": [
+          0.21180396,
+          0.27664487
+        ],
+        "method": "participant cluster bootstrap",
+        "replicates": 1000,
+        "seed": 20260720
+      },
+      "weighted_f1": 0.25645084
+    },
+    "validation": {
+      "accuracy": 0.21671526,
+      "balanced_accuracy": 0.21480864,
+      "class_counts": {
+        "Fertility": 226,
+        "Follicular": 160,
+        "Luteal": 407,
+        "Menstrual": 236
+      },
+      "class_order": [
+        "Fertility",
+        "Follicular",
+        "Luteal",
+        "Menstrual"
+      ],
+      "classification_report": {
+        "Fertility": {
+          "f1-score": 0.20316027,
+          "precision": 0.20737327,
+          "recall": 0.19911504,
+          "support": 226.0
+        },
+        "Follicular": {
+          "f1-score": 0.13483146,
+          "precision": 0.12244898,
+          "recall": 0.15,
+          "support": 160.0
+        },
+        "Luteal": {
+          "f1-score": 0.23809524,
+          "precision": 0.30188679,
+          "recall": 0.1965602,
+          "support": 407.0
+        },
+        "Menstrual": {
+          "f1-score": 0.25212947,
+          "precision": 0.21082621,
+          "recall": 0.31355932,
+          "support": 236.0
+        },
+        "accuracy": 0.21671526,
+        "macro avg": {
+          "f1-score": 0.20705411,
+          "precision": 0.21063381,
+          "recall": 0.21480864,
+          "support": 1029.0
+        },
+        "weighted avg": {
+          "f1-score": 0.21758462,
+          "precision": 0.23234315,
+          "recall": 0.21671526,
+          "support": 1029.0
+        }
+      },
+      "confusion_matrix": [
+        [
+          45,
+          42,
+          66,
+          73
+        ],
+        [
+          39,
+          24,
+          49,
+          48
+        ],
+        [
+          89,
+          82,
+          80,
+          156
+        ],
+        [
+          44,
+          48,
+          70,
+          74
+        ]
+      ],
+      "examples": 1029,
+      "log_loss": 1.55388778,
+      "macro_f1": 0.20705411,
+      "weighted_f1": 0.21758462
+    }
+  }
+}

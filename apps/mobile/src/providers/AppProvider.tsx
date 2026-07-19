@@ -23,6 +23,7 @@ import {
   getAccount,
   getCycleTracking,
   getForecast,
+  getPhaseForecast,
 } from "@/services/api";
 import { authenticateDevice } from "@/services/deviceAuth";
 import {
@@ -64,6 +65,7 @@ import type {
   CycleTrackingSummary,
   EnrollRequest,
   ForecastResponse,
+  PhaseForecastResponse,
   Result,
 } from "@/types";
 import { applyCycleDay, checkInCycleContext, localCycleSummary } from "@/utils/cycle";
@@ -85,6 +87,7 @@ interface AppContextValue {
   readonly syncIssue: string | null;
   readonly cycleSyncIssue: string | null;
   readonly forecast: ForecastResponse | null;
+  readonly phaseForecast: PhaseForecastResponse | null;
   readonly account: AccountSummary | null;
   readonly cycleSummary: CycleTrackingSummary | null;
   readonly isRefreshing: boolean;
@@ -130,6 +133,7 @@ export function AppProvider({ children }: PropsWithChildren): React.ReactElement
   const [syncIssue, setSyncIssue] = useState<string | null>(null);
   const [cycleSyncIssue, setCycleSyncIssue] = useState<string | null>(null);
   const [forecast, setForecast] = useState<ForecastResponse | null>(null);
+  const [phaseForecast, setPhaseForecast] = useState<PhaseForecastResponse | null>(null);
   const [account, setAccount] = useState<AccountSummary | null>(null);
   const [cycleSummary, setCycleSummary] = useState<CycleTrackingSummary | null>(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -147,6 +151,7 @@ export function AppProvider({ children }: PropsWithChildren): React.ReactElement
     setIsLocked(false);
     setHasCurrentConsent(null);
     setForecast(null);
+    setPhaseForecast(null);
     setAccount(null);
     setLastCheckInDate(null);
     setWearablePendingCount(0);
@@ -212,6 +217,12 @@ export function AppProvider({ children }: PropsWithChildren): React.ReactElement
       const forecastResult = await getForecast(token);
       if (forecastResult.ok) setForecast(forecastResult.value);
       if (!forecastResult.ok && forecastResult.status === 401) {
+        await resetSession();
+        return;
+      }
+      const phaseResult = await getPhaseForecast(token, localDateString());
+      if (phaseResult.ok) setPhaseForecast(phaseResult.value);
+      if (!phaseResult.ok && phaseResult.status === 401) {
         await resetSession();
       }
     } finally {
@@ -603,6 +614,7 @@ export function AppProvider({ children }: PropsWithChildren): React.ReactElement
     setIsLocked(false);
     setHasCurrentConsent(null);
     setForecast(null);
+    setPhaseForecast(null);
     setAccount(null);
     setPendingCount(0);
     setWearablePendingCount(0);
@@ -626,6 +638,7 @@ export function AppProvider({ children }: PropsWithChildren): React.ReactElement
       syncIssue,
       cycleSyncIssue,
       forecast,
+      phaseForecast,
       account,
       cycleSummary,
       isRefreshing,
@@ -662,6 +675,7 @@ export function AppProvider({ children }: PropsWithChildren): React.ReactElement
       enableCycleTracking,
       enrollUser,
       forecast,
+      phaseForecast,
       hasCurrentConsent,
       isBooting,
       isLocked,

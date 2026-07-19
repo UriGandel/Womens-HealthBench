@@ -10,16 +10,19 @@ does not wish to continue can delete the account, which ends participation and
 removes all account-linked operational and research records.
 
 Optional health-app connection is read-only. It imports no more than 31 local
-calendar days of daily aggregates for sleep, steps, exercise, active energy,
-resting heart rate, HRV with method, respiratory rate, oxygen saturation, and
-wrist/skin temperature deviation. The app does not request reproductive,
+calendar days of daily summaries plus four completed six-hour aggregates per
+day for activity, ordinary heart rate, HRV with method, respiratory rate, and
+oxygen saturation. Each research interval uses a relative day and bucket index,
+not an absolute date or timestamp. The app does not request reproductive,
 fertility, ECG, location, workout-route, or clinical-record permissions.
 
 Optional cycle tracking is enabled through a separate in-context
 acknowledgement. It stores up to 120 local calendar days containing only
 spotting or flow status. Separately logged cycle history is operational data:
-it can inform the participant experience and a matching-date forecast context,
-but it is not exported to the research dataset. Cycle values already submitted
+it can correct the participant calendar and matching-date forecast context, but
+it is not exported to the research dataset. Every check-in separately requires
+an explicit None, Spotting, or Flow response; that self-report remains part of
+the check-in and research row. Cycle values already submitted
 inside a completed check-in remain part of that check-in and its research row.
 Disabling cycle tracking deletes the separate server history, sync receipts,
 and encrypted local queue/cache without rewriting completed check-ins.
@@ -43,12 +46,15 @@ data.
 ## Data lifecycle
 
 - Collect only the structured fields documented in the public schema.
-- Do not use cycle history to estimate fertility, ovulation, future phases, or
-  a next-period date.
+- Approximate phase and next-period projections are operational wellness
+  estimates only. Never export them as research truth, feed them into the live
+  symptom probability, or label dates fertile, safe, or infertile.
 - Encrypt transport and storage. Do not put health payloads or authorization
   material in logs, crash reports, or analytics.
 - Create a research row for every contributed participant-day; sensor-only days
   contain no symptom target.
+- Create separate pseudonymous six-hour research aggregates without absolute
+  dates, platform provenance, or raw timestamps.
 - “Disconnect and delete imported health data” stops reads, clears the
   encrypted wearable queue/cache, deletes server summaries and their research
   contribution, and preserves manual check-ins. OS authorization must be
@@ -72,7 +78,9 @@ project.
 
 Every forecast is labeled experimental wellness information. It is not a
 diagnosis or medical advice and should not delay professional care. Product
-copy must describe model factors as non-causal associations.
+copy must describe model factors as non-causal associations. Phase projections
+must also state that they do not confirm ovulation and must not be used for
+contraception or fertility decisions.
 
 ## Verification checklist
 

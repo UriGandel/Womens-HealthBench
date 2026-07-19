@@ -92,3 +92,49 @@ The loader refuses raw archive formats and refuses restricted inputs located
 inside the repository. Only aggregate reports may be reviewed for release, and
 that review remains subject to the source license, consent, ethics, and
 re-identification-risk requirements.
+
+## mcPHASES menstrual-phase benchmarks
+
+The reviewed
+[`benchmark/mcphases_phase_v01`](../benchmark/mcphases_phase_v01/results/README.md)
+directory is a separate four-class task: predict the labelled current
+participant-day phase from passive summaries on `t−7` through `t−1`. It
+contains the reproducible local builder, frozen task definition, 161-feature
+dictionary, source manifest, and aggregate metrics. It contains no raw or
+participant-level data, split identities, row-level predictions, or serialized
+models.
+
+Both benchmark versions use the same 5,398 eligible examples, the same 42
+participants, and the same participant-disjoint 25/8/9 train/validation/test
+split:
+
+| Version | Purpose | Features | Test macro-F1 | Participant-bootstrap 95% CI |
+| --- | --- | ---: | ---: | ---: |
+| v0.1 broad benchmark | Offline reference / public pre-engineered-feature API | 161 | 0.307 | 0.257–0.357 |
+| v0.2 app-compatible | Experimental serving candidate | 26 | 0.270 | 0.225–0.305 |
+
+v0.1 uses a broader set of Fitbit-style engineered summaries and is not an
+adapter for direct app data. v0.2 restricts the inputs to sleep, resting heart
+rate, RMSSD HRV, respiratory rate, and peripheral-temperature deviation that
+the app can represent consistently. The 0.037 macro-F1 gap documents the
+observed cost of the deployment-compatible feature restriction; it is not a
+clinical-utility comparison.
+
+Both models predict the target day's dataset phase label at the start of that
+day using seven prior complete days. They are not trained as arbitrary
+multi-day forecasts. The mobile experience therefore uses v0.2 for its single
+supported target-day signal and the existing calendar-history rules for future
+days. It may report whether the two signals agree, but must not silently blend
+them into a new unvalidated model output.
+
+The four output labels are `Fertility`, `Follicular`, `Luteal`, and
+`Menstrual`. “Fertility” is a source-dataset phase label and must never be
+interpreted as “you are fertile,” ovulation confirmation, contraception
+guidance, or conception guidance. Probability outputs are withheld because
+calibration is poor.
+
+The v0.1 model API accepts exactly the 161 pre-engineered features documented
+in the feature dictionary. It does not accept restricted archives, raw
+mcPHASES rows, identifiers, or app wearable records. The v0.2 account endpoint
+requires authentication and at least four supported lookback days. SDNN is
+never converted to RMSSD.

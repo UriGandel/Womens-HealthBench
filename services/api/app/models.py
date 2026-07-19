@@ -51,6 +51,12 @@ class Account(Base):
     wearable_sync_receipts: Mapped[list[WearableSyncReceipt]] = relationship(
         back_populates="account", cascade="all, delete-orphan"
     )
+    wearable_intervals: Mapped[list[WearableIntervalSummary]] = relationship(
+        back_populates="account", cascade="all, delete-orphan"
+    )
+    wearable_interval_sync_receipts: Mapped[list[WearableIntervalSyncReceipt]] = relationship(
+        back_populates="account", cascade="all, delete-orphan"
+    )
     cycle_tracking_preference: Mapped[CycleTrackingPreference | None] = relationship(
         back_populates="account", cascade="all, delete-orphan", uselist=False
     )
@@ -76,6 +82,9 @@ class ParticipantLink(Base):
         back_populates="participant_link", cascade="all, delete-orphan"
     )
     research_wearable_days: Mapped[list[ResearchWearableDay]] = relationship(
+        back_populates="participant_link", cascade="all, delete-orphan"
+    )
+    research_wearable_intervals: Mapped[list[ResearchWearableInterval]] = relationship(
         back_populates="participant_link", cascade="all, delete-orphan"
     )
 
@@ -183,6 +192,66 @@ class WearableSyncReceipt(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
 
     account: Mapped[Account] = relationship(back_populates="wearable_sync_receipts")
+
+
+class WearableIntervalSummary(Base):
+    __tablename__ = "health_wearable_interval_summaries"
+    __table_args__ = (
+        UniqueConstraint(
+            "account_id",
+            "observed_date",
+            "bucket_start_hour",
+            name="uq_wearable_interval_account_day_bucket",
+        ),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uuid_string)
+    account_id: Mapped[str] = mapped_column(
+        ForeignKey("identity_accounts.id", ondelete="CASCADE"), index=True
+    )
+    observed_date: Mapped[date] = mapped_column(Date)
+    bucket_start_hour: Mapped[int] = mapped_column(Integer)
+    platform: Mapped[str] = mapped_column(String(32))
+    steps: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    activity_minutes: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    active_energy_kcal: Mapped[float | None] = mapped_column(Float, nullable=True)
+    heart_rate_avg_bpm: Mapped[float | None] = mapped_column(Float, nullable=True)
+    heart_rate_min_bpm: Mapped[float | None] = mapped_column(Float, nullable=True)
+    heart_rate_max_bpm: Mapped[float | None] = mapped_column(Float, nullable=True)
+    heart_rate_sample_count: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    hrv_avg_ms: Mapped[float | None] = mapped_column(Float, nullable=True)
+    hrv_sample_count: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    hrv_method: Mapped[str | None] = mapped_column(String(16), nullable=True)
+    respiratory_rate_avg_bpm: Mapped[float | None] = mapped_column(Float, nullable=True)
+    respiratory_rate_sample_count: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    oxygen_saturation_avg_pct: Mapped[float | None] = mapped_column(Float, nullable=True)
+    oxygen_saturation_sample_count: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utc_now, onupdate=utc_now
+    )
+
+    account: Mapped[Account] = relationship(back_populates="wearable_intervals")
+
+
+class WearableIntervalSyncReceipt(Base):
+    __tablename__ = "health_wearable_interval_sync_receipts"
+    __table_args__ = (
+        UniqueConstraint("account_id", "sync_id", name="uq_wearable_interval_account_sync"),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uuid_string)
+    account_id: Mapped[str] = mapped_column(
+        ForeignKey("identity_accounts.id", ondelete="CASCADE"), index=True
+    )
+    sync_id: Mapped[str] = mapped_column(String(64))
+    payload_hash: Mapped[str] = mapped_column(String(64))
+    accepted_intervals: Mapped[int] = mapped_column(Integer)
+    deleted_intervals: Mapped[int] = mapped_column(Integer)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
+
+    account: Mapped[Account] = relationship(
+        back_populates="wearable_interval_sync_receipts"
+    )
 
 
 class CycleTrackingPreference(Base):
@@ -295,4 +364,47 @@ class ResearchWearableDay(Base):
 
     participant_link: Mapped[ParticipantLink] = relationship(
         back_populates="research_wearable_days"
+    )
+
+
+class ResearchWearableInterval(Base):
+    __tablename__ = "research_wearable_interval_events"
+    __table_args__ = (
+        UniqueConstraint(
+            "research_id",
+            "day_in_study",
+            "bucket_index",
+            name="uq_research_wearable_interval",
+        ),
+        UniqueConstraint(
+            "research_id",
+            "source_wearable_interval_id",
+            name="uq_research_source_wearable_interval",
+        ),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uuid_string)
+    research_id: Mapped[str] = mapped_column(
+        ForeignKey("identity_participant_links.research_id", ondelete="CASCADE"), index=True
+    )
+    source_wearable_interval_id: Mapped[str] = mapped_column(String(36))
+    day_in_study: Mapped[int] = mapped_column(Integer)
+    bucket_index: Mapped[int] = mapped_column(Integer)
+    steps: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    activity_minutes: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    active_energy_kcal: Mapped[float | None] = mapped_column(Float, nullable=True)
+    heart_rate_avg_bpm: Mapped[float | None] = mapped_column(Float, nullable=True)
+    heart_rate_min_bpm: Mapped[float | None] = mapped_column(Float, nullable=True)
+    heart_rate_max_bpm: Mapped[float | None] = mapped_column(Float, nullable=True)
+    heart_rate_sample_count: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    hrv_avg_ms: Mapped[float | None] = mapped_column(Float, nullable=True)
+    hrv_sample_count: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    hrv_method: Mapped[str | None] = mapped_column(String(16), nullable=True)
+    respiratory_rate_avg_bpm: Mapped[float | None] = mapped_column(Float, nullable=True)
+    respiratory_rate_sample_count: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    oxygen_saturation_avg_pct: Mapped[float | None] = mapped_column(Float, nullable=True)
+    oxygen_saturation_sample_count: Mapped[int | None] = mapped_column(Integer, nullable=True)
+
+    participant_link: Mapped[ParticipantLink] = relationship(
+        back_populates="research_wearable_intervals"
     )

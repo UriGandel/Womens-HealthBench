@@ -18,6 +18,14 @@ rate, oxygen saturation, and peripheral temperature deviation from a causal
 personal baseline. HRV method is always explicit because SDNN and RMSSD are not
 interchangeable raw values.
 
+Version `1.0.0` of `research-wearable-interval.schema.json` defines a separate
+six-hour aggregate. `bucket_index` is one of 0–3 and preserves broad time of
+day without exporting an absolute date, timestamp, timezone, health platform,
+or source record. Averaged heart rate, HRV, respiratory rate, and oxygen
+saturation include sample counts; ordinary heart rate additionally includes
+minimum and maximum values. Inferred cycle phases are not part of either
+research schema.
+
 Exports merge operational check-ins and wearable summaries by participant and
 relative day. They exclude absolute dates, health platform, device/source
 provenance, source record IDs, and account identifiers. `source` describes

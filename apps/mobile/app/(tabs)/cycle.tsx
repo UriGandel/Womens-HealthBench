@@ -7,7 +7,7 @@ import { Notice } from "@/components/Notice";
 import { Screen } from "@/components/Screen";
 import { useApp } from "@/providers/AppProvider";
 import { colors, radius, type } from "@/theme";
-import type { CycleStatus } from "@/types";
+import type { CyclePhase, CycleStatus, ResearchPhase } from "@/types";
 import { cycleDayForDate } from "@/utils/cycle";
 import { localDateString } from "@/utils/date";
 
@@ -69,9 +69,17 @@ function displayDate(value: string): string {
   }).format(localDate(value));
 }
 
+function researchPhaseAsCyclePhase(phase: ResearchPhase): CyclePhase {
+  if (phase === "Fertility") return "ovulatory";
+  if (phase === "Follicular") return "follicular";
+  if (phase === "Luteal") return "luteal";
+  return "menstrual";
+}
+
 export default function CycleScreen(): React.ReactElement {
   const {
     cycleSummary,
+    phaseForecast,
     cyclePendingCount,
     cycleSyncIssue,
     isOnline,
@@ -116,6 +124,13 @@ export default function CycleScreen(): React.ReactElement {
       ? null
       : { start: dates[0] ?? "", end: dates.at(-1) ?? "" };
   }, [cycleSummary?.phase_days]);
+  const rulePhaseToday = phasesByDate.get(todayString)?.phase ?? null;
+  const modelPhase =
+    phaseForecast?.status === "ready" ? phaseForecast.predicted_phase : null;
+  const signalsAgree =
+    modelPhase !== null && rulePhaseToday !== null
+      ? researchPhaseAsCyclePhase(modelPhase) === rulePhaseToday
+      : null;
   const cells = useMemo(() => monthCells(visibleMonth), [visibleMonth]);
   const selectedStatus = daysByDate.get(selectedDate) ?? null;
   const selectedCycleDay = cycleDayForDate(cycleSummary?.days ?? [], selectedDate);
@@ -342,6 +357,52 @@ export default function CycleScreen(): React.ReactElement {
 
       <View style={styles.card}>
         <Text style={styles.sectionTitle}>Estimated phases</Text>
+        <View style={styles.sourceRow}>
+          <View style={[styles.sourceBadge, styles.modelBadge]}>
+            <Text style={styles.sourceBadgeText}>WEARABLE MODEL · TODAY</Text>
+          </View>
+          <View style={styles.sourceBadge}>
+            <Text style={styles.sourceBadgeText}>CALENDAR RULES · FUTURE</Text>
+          </View>
+        </View>
+        {modelPhase ? (
+          <View style={styles.modelSignal}>
+            <Text style={styles.modelSignalLabel}>Today’s research dataset label</Text>
+            <Text style={styles.modelSignalValue}>{modelPhase}</Text>
+            {signalsAgree === true ? (
+              <Text style={styles.detail}>
+                The wearable model and calendar-history rule point in the same
+                direction today.
+              </Text>
+            ) : signalsAgree === false ? (
+              <Text style={styles.detail}>
+                The wearable model and calendar-history rule differ today. Both
+                remain experimental signals.
+              </Text>
+            ) : null}
+            {modelPhase === "Fertility" ? (
+              <Text style={styles.detail}>
+                “Fertility” is the source dataset’s phase label. It does not mean
+                that you are fertile.
+              </Text>
+            ) : null}
+          </View>
+        ) : phaseForecast?.status === "insufficient_data" ? (
+          <Text style={styles.detail}>
+            The wearable model needs four supported recent days. It currently
+            has {phaseForecast.usable_days}/{phaseForecast.required_days}.
+          </Text>
+        ) : phaseForecast?.status === "model_unavailable" ? (
+          <Text style={styles.detail}>
+            The wearable-model signal is temporarily unavailable. Calendar
+            estimates below still use your logged history.
+          </Text>
+        ) : (
+          <Text style={styles.detail}>
+            Refresh after syncing health data to check the wearable-model signal.
+          </Text>
+        )}
+        <View style={styles.rule} />
         {cycleSummary?.prediction_status === "ready" ? (
           <>
             <Text style={styles.detail}>
@@ -370,9 +431,9 @@ export default function CycleScreen(): React.ReactElement {
           </Text>
         )}
         <Text style={styles.finePrint}>
-          These approximate wellness estimates do not confirm ovulation and are
-          not fertility or contraception guidance. Calendar-only estimates may
-          be unreliable with irregular bleeding.
+          {phaseForecast?.disclaimer ??
+            "Research estimate only—not medical advice, fertility guidance, contraception guidance, ovulation confirmation, or diagnosis."}
+          {" "}Calendar-rule estimates may be unreliable with irregular bleeding.
         </Text>
       </View>
 
@@ -481,6 +542,48 @@ const styles = StyleSheet.create({
     color: colors.ink,
     fontFamily: type.display,
     fontSize: 21,
+  },
+  sourceRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 7,
+  },
+  sourceBadge: {
+    borderRadius: radius.pill,
+    borderWidth: 1,
+    borderColor: colors.line,
+    backgroundColor: colors.paper,
+    paddingHorizontal: 9,
+    paddingVertical: 6,
+  },
+  modelBadge: {
+    backgroundColor: colors.mineralSoft,
+    borderColor: colors.mineral,
+  },
+  sourceBadgeText: {
+    color: colors.mineralDark,
+    fontFamily: type.mono,
+    fontSize: 9,
+    fontWeight: "700",
+    letterSpacing: 0.6,
+  },
+  modelSignal: {
+    gap: 6,
+    borderLeftWidth: 3,
+    borderLeftColor: colors.mineral,
+    paddingLeft: 13,
+  },
+  modelSignalLabel: {
+    color: colors.muted,
+    fontFamily: type.mono,
+    fontSize: 9,
+    letterSpacing: 0.7,
+    textTransform: "uppercase",
+  },
+  modelSignalValue: {
+    color: colors.ink,
+    fontFamily: type.display,
+    fontSize: 28,
   },
   detail: {
     color: colors.slate,

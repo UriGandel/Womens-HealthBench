@@ -66,7 +66,7 @@ def enrollment_body() -> dict[str, object]:
         "adult_confirmed": True,
         "operational_consent": True,
         "research_consent": True,
-        "consent_version": "2026-07-19-health-v1",
+        "consent_version": "2026-07-19-intraday-cycle-v2",
     }
 
 
@@ -242,7 +242,7 @@ def test_outdated_consent_blocks_data_until_terms_are_reaccepted(
         json={
             "operational_consent": True,
             "research_consent": False,
-            "consent_version": "2026-07-19-health-v1",
+            "consent_version": "2026-07-19-intraday-cycle-v2",
         },
         headers=auth(token),
     )
@@ -253,7 +253,7 @@ def test_outdated_consent_blocks_data_until_terms_are_reaccepted(
         json={
             "operational_consent": True,
             "research_consent": True,
-            "consent_version": "2026-07-19-health-v1",
+            "consent_version": "2026-07-19-intraday-cycle-v2",
         },
         headers=auth(token),
     )

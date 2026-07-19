@@ -10,7 +10,8 @@
 
 The production alpha uses `tomorrow-gently-transparent-0.2.0`. Version 0.2 only
 allows separately logged spotting or flow on the latest check-in date to supply
-the existing cycle-context input; it adds no fertility or phase prediction.
+the existing cycle-context input. A separate operational calendar now displays
+approximate phases, but those estimates do not change the symptom probability.
 Synthetic wearable results must not change the live model. Further promotion
 requires incremental value on consented non-synthetic data, a new model
 version, a validation report, an updated model card, and a tested rollback
@@ -88,9 +89,51 @@ probability distribution, calibration when delayed outcomes arrive, service
 
 ## Optional cycle-history boundary
 
-Cycle history is a separately enabled operational feature limited to 120 days
-of manually logged spotting or flow. It may replace the period context for a
-forecast only when a cycle record matches the latest check-in date. Cycle-only
-records are excluded from research exports. The product calculates elapsed
-cycle day from observed flow starts and descriptive symptom associations; it
-does not predict fertility, ovulation, future phases, or the next period.
+Every check-in requires an explicit None, Spotting, or Flow response. Separate
+cycle-history editing remains optional and is limited to 120 days; an edit may
+replace operational calendar context on the same date without rewriting the
+completed research row. Calendar projections require at least three logged
+flow starts, cover no more than two cycles/90 days, and are suppressed for
+insufficient or highly variable histories. They are excluded from research
+exports and the live symptom model and are never presented as fertility,
+contraception, or confirmation of ovulation.
+
+## Menstrual-phase research models
+
+The menstrual-phase estimate is separate from the next-day symptom-burden
+model described above. It does not replace `/v1/forecast`, contribute features
+to it, or change its probability.
+
+Two restricted-data phase models share one frozen participant split and 5,398
+eligible examples:
+
+- `mcphases-broad-0.1.0` is the 161-feature broad wearable reference. Its test
+  macro-F1 is 0.307 (participant-bootstrap 95% CI 0.257–0.357). It is exposed
+  only as a public developer API for complete pre-engineered feature vectors;
+  the mobile app never calls it.
+- `mcphases-app-common-0.2.0` is the 26-feature app-compatible candidate. Its
+  test macro-F1 is 0.270 (95% CI 0.225–0.305). The 0.037 difference records
+  the performance cost observed after restricting inputs to deployable
+  app-common features.
+
+Both classify the target day as `Fertility`, `Follicular`, `Luteal`, or
+`Menstrual` from the previous seven complete days. They are experimental
+research prototypes, not clinically validated models and not future fertility
+forecasts. Probabilities are not shown because calibration is poor.
+
+The Cycle screen places the v0.2 result and calendar-history rules in one
+estimated-phases experience. v0.2 supplies only its contract-valid target-day
+signal; rules supply later calendar projections. Agreement or disagreement may
+be described to the user, but the signals are not numerically combined into a
+new unevaluated prediction. If v0.2 is unavailable or has fewer than four
+usable days, rule estimates remain available and are still identified as
+rule-derived.
+
+For v0.2, RMSSD statistics use `hrv_ms` only when the recorded method is
+`rmssd`; SDNN remains missing. The target day is always excluded. “Fertility”
+is displayed only as the source dataset's class label and never as a claim
+about fertility, ovulation, contraception, conception, or diagnosis.
+
+Serialized models remain private, are loaded from environment-configured paths,
+and fail independently. Restricted source rows, participant feature tables,
+split identities, and row-level predictions are not distributed.

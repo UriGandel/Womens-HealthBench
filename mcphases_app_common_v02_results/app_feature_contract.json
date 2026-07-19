@@ -1,0 +1,39 @@
+{
+  "additional_feature": "lookback_observed_days",
+  "daily_inputs": {
+    "hrv_rmssd_ms": "WearableDailyRecord.hrv_ms only when hrv_method == 'rmssd'; otherwise null",
+    "peripheral_temperature_delta_c": "WearableDailyRecord.peripheral_temperature_delta_c",
+    "respiratory_rate_bpm": "WearableDailyRecord.respiratory_rate_bpm",
+    "resting_heart_rate_bpm": "WearableDailyRecord.resting_heart_rate_bpm",
+    "sleep_minutes": "WearableDailyRecord.sleep_minutes"
+  },
+  "excluded_app_fields": [
+    "steps",
+    "activity_minutes",
+    "active_energy_kcal",
+    "oxygen_saturation_pct",
+    "SDNN HRV",
+    "manual cycle_day",
+    "period_status",
+    "symptoms"
+  ],
+  "expected_feature_count": 26,
+  "lookback_days": 7,
+  "minimum_observed_days": 4,
+  "output_classes": [
+    "Fertility",
+    "Follicular",
+    "Luteal",
+    "Menstrual"
+  ],
+  "prediction_timestamp": "start of target local calendar day",
+  "rolling_statistics_per_daily_input": [
+    "mean7",
+    "sd7",
+    "min7",
+    "max7",
+    "n7"
+  ],
+  "selected_model": "hist_gradient_boosting",
+  "version": "0.2.0-app-common"
+}

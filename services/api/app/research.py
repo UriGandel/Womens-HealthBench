@@ -7,7 +7,9 @@ from app.models import (
     ConsentRecord,
     ResearchEvent,
     ResearchWearableDay,
+    ResearchWearableInterval,
     WearableDailySummary,
+    WearableIntervalSummary,
 )
 
 
@@ -64,6 +66,33 @@ def to_research_wearable_day(
     )
 
 
+def to_research_wearable_interval(
+    account: Account,
+    interval: WearableIntervalSummary,
+) -> ResearchWearableInterval:
+    link = account.participant_link
+    return ResearchWearableInterval(
+        research_id=link.research_id,
+        source_wearable_interval_id=interval.id,
+        day_in_study=(interval.observed_date - link.day_zero).days,
+        bucket_index=interval.bucket_start_hour // 6,
+        steps=interval.steps,
+        activity_minutes=interval.activity_minutes,
+        active_energy_kcal=interval.active_energy_kcal,
+        heart_rate_avg_bpm=interval.heart_rate_avg_bpm,
+        heart_rate_min_bpm=interval.heart_rate_min_bpm,
+        heart_rate_max_bpm=interval.heart_rate_max_bpm,
+        heart_rate_sample_count=interval.heart_rate_sample_count,
+        hrv_avg_ms=interval.hrv_avg_ms,
+        hrv_sample_count=interval.hrv_sample_count,
+        hrv_method=interval.hrv_method,
+        respiratory_rate_avg_bpm=interval.respiratory_rate_avg_bpm,
+        respiratory_rate_sample_count=interval.respiratory_rate_sample_count,
+        oxygen_saturation_avg_pct=interval.oxygen_saturation_avg_pct,
+        oxygen_saturation_sample_count=interval.oxygen_saturation_sample_count,
+    )
+
+
 def rebuild_research_timeline(session: Session, account: Account) -> int:
     """Rebuild the pseudonymous union of all consent-covered participant days."""
     checkins = session.scalars(
@@ -76,11 +105,21 @@ def rebuild_research_timeline(session: Session, account: Account) -> int:
         .where(WearableDailySummary.account_id == account.id)
         .order_by(WearableDailySummary.observed_date, WearableDailySummary.id)
     ).all()
+    wearable_intervals = session.scalars(
+        select(WearableIntervalSummary)
+        .where(WearableIntervalSummary.account_id == account.id)
+        .order_by(
+            WearableIntervalSummary.observed_date,
+            WearableIntervalSummary.bucket_start_hour,
+            WearableIntervalSummary.id,
+        )
+    ).all()
     clear_research_rows(session, account)
     session.flush()
     observed_dates = [
         *(checkin.observed_date for checkin in checkins),
         *(wearable.observed_date for wearable in wearable_days),
+        *(interval.observed_date for interval in wearable_intervals),
     ]
     if not observed_dates:
         return 0
@@ -90,6 +129,8 @@ def rebuild_research_timeline(session: Session, account: Account) -> int:
         session.add(to_research_event(account, checkin))
     for wearable_day in wearable_days:
         session.add(to_research_wearable_day(account, wearable_day))
+    for interval in wearable_intervals:
+        session.add(to_research_wearable_interval(account, interval))
     return len(set(observed_dates))
 
 
@@ -115,6 +156,12 @@ def clear_research_rows(session: Session, account: Account) -> None:
             ResearchWearableDay.research_id == account.participant_link.research_id
         )
     )
+    session.execute(
+        delete(ResearchWearableInterval).where(
+            ResearchWearableInterval.research_id
+            == account.participant_link.research_id
+        )
+    )
 
 
 def research_record_count(session: Session, account: Account) -> int:
@@ -131,7 +178,14 @@ def research_record_count(session: Session, account: Account) -> int:
             )
         ).all()
     )
-    return len(checkin_days | wearable_days)
+    interval_days = set(
+        session.scalars(
+            select(ResearchWearableInterval.day_in_study).where(
+                ResearchWearableInterval.research_id == research_id
+            )
+        ).all()
+    )
+    return len(checkin_days | wearable_days | interval_days)
 
 
 def is_checkin_contributed(session: Session, account: Account, checkin: CheckIn) -> bool:
