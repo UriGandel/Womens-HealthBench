@@ -10,6 +10,7 @@ export const colors = {
   mineral: "#286070",
   mineralDark: "#174653",
   mineralSoft: "#D8E8E8",
+  moss: "#4E9B5E",
   amber: "#EAAE48",
   amberSoft: "#F8EACB",
   plum: "#5E4967",

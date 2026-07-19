@@ -33,6 +33,62 @@ def auth(token: str) -> dict[str, str]:
     return {"Authorization": f"Bearer {token}"}
 
 
+def test_invitation_check_reports_validity_without_consuming(
+    client: TestClient, invite
+) -> None:
+    invite("FRESH-CODE")
+    invite("EXPIRED-CODE", expired=True)
+
+    response = client.post("/v1/invitations/check", json={"invitation_code": "FRESH-CODE"})
+    assert response.status_code == 200
+    assert response.json() == {"valid": True, "detail": None}
+
+    response = client.post("/v1/invitations/check", json={"invitation_code": "EXPIRED-CODE"})
+    assert response.json()["valid"] is False
+
+    response = client.post("/v1/invitations/check", json={"invitation_code": "NEVER-MADE"})
+    assert response.json()["valid"] is False
+
+    # A checked invitation is not consumed and still enrolls.
+    response = client.post(
+        "/v1/enroll",
+        json={
+            "invitation_code": "FRESH-CODE",
+            "adult_confirmed": True,
+            "operational_consent": True,
+            "research_opt_in": False,
+            "consent_version": "2026-07-01",
+            "seed_demo_history": False,
+        },
+    )
+    assert response.status_code == 201, response.text
+    response = client.post("/v1/invitations/check", json={"invitation_code": "FRESH-CODE"})
+    assert response.json()["valid"] is False
+
+
+def test_demo_invite_code_is_reusable_in_demo_mode(
+    client: TestClient, invite, monkeypatch
+) -> None:
+    from app.main import settings
+
+    monkeypatch.setattr(settings, "demo_mode", True)
+    monkeypatch.setattr(settings, "demo_invite_code", "DEMO-CODE")
+    invite("DEMO-CODE")
+
+    body = {
+        "invitation_code": "DEMO-CODE",
+        "adult_confirmed": True,
+        "operational_consent": True,
+        "research_opt_in": False,
+        "consent_version": "2026-07-01",
+        "seed_demo_history": False,
+    }
+    assert client.post("/v1/enroll", json=body).status_code == 201
+    check = client.post("/v1/invitations/check", json={"invitation_code": "DEMO-CODE"})
+    assert check.json()["valid"] is True
+    assert client.post("/v1/enroll", json=body).status_code == 201
+
+
 def test_enrollment_rejects_expired_used_and_invalid_consent(
     client: TestClient, invite
 ) -> None:

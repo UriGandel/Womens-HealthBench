@@ -11,6 +11,11 @@ export interface EnrollRequest {
   readonly seed_demo_history: boolean;
 }
 
+export interface InvitationCheckResponse {
+  readonly valid: boolean;
+  readonly detail: string | null;
+}
+
 export interface EnrollResponse {
   readonly access_token: string;
   readonly consent_version: string;

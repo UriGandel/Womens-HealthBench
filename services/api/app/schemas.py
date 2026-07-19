@@ -7,6 +7,15 @@ Rating = Literal[0, 1, 2, 3, 4]
 PeriodStatus = Literal["none", "spotting", "flow"]
 
 
+class InvitationCheckRequest(BaseModel):
+    invitation_code: str = Field(min_length=4, max_length=64)
+
+
+class InvitationCheckResponse(BaseModel):
+    valid: bool
+    detail: str | None = None
+
+
 class EnrollRequest(BaseModel):
     invitation_code: str = Field(min_length=4, max_length=64)
     adult_confirmed: bool
