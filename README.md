@@ -1,8 +1,23 @@
-# Tomorrow, Gently — private symptom forecasting
+# Women's Health Bench (WHB)
 
-Tomorrow, Gently is a private, internal-distribution mobile alpha for
-forecasting whether tomorrow may be a higher-symptom day. It is an experimental
-wellness tool, not a diagnostic product.
+**Open benchmark for menstrual phase prediction using wearable physiological data.**
+
+Women's Health Bench (WHB) is an open, reproducible benchmark designed to predict a participant's current menstrual phase using only wearable physiological data collected over the previous seven days. The project provides a standardized evaluation framework for researchers building AI models for women's hormonal health.
+
+## Key Features
+
+-  Predicts four menstrual phases:
+  - Menstrual
+  - Follicular
+  - Fertility
+  - Luteal
+-  Uses only the previous seven days of wearable physiological signals
+-  Prevents temporal data leakage by excluding current-day and future information
+-  Generates **161 engineered features** through rolling-window feature engineering
+-  Fully reproducible preprocessing and feature engineering pipeline
+-  Open-source AI infrastructure for women's hormonal health research
+
+> **Disclaimer:** Women's Health Bench is intended for research and benchmarking purposes only. It is **not** a medical device and should not be used for diagnosis, treatment, or clinical decision-making.
 
 The repository contains:
 
