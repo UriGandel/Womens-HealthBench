@@ -65,14 +65,13 @@ export default function PrivacyScreen(): React.ReactElement {
   return (
     <Screen>
       <View style={styles.header}>
-        <Text style={styles.eyebrow}>PRIVACY CONTROL</Text>
         <Text style={styles.title}>Your data stays yours.</Text>
         <Text style={styles.subtitle}>
           App use and research contribution are separate choices.
         </Text>
       </View>
 
-      <View style={styles.researchCard}>
+      <View style={styles.card}>
         <View style={styles.toggleRow}>
           <View style={styles.toggleCopy}>
             <Text style={styles.sectionTitle}>Research contribution</Text>
@@ -89,13 +88,8 @@ export default function PrivacyScreen(): React.ReactElement {
             thumbColor={colors.white}
           />
         </View>
-        <View style={styles.badge}>
-          <Text style={styles.badgeText}>
-            {account?.research_opt_in ? "OPTED IN" : "NOT CONTRIBUTING"}
-          </Text>
-        </View>
         <Text style={styles.finePrint}>
-          Pseudonymous does not mean anonymous. Turning this off removes contributed research rows while preserving operational check-ins needed for your app.
+          Pseudonymous, not anonymous. Turning this off removes your contributed research rows.
         </Text>
       </View>
 
@@ -134,17 +128,6 @@ export default function PrivacyScreen(): React.ReactElement {
         </Text>
       </View>
 
-      <View style={styles.card}>
-        <Text style={styles.cardLabel}>SAFE USE</Text>
-        <Text style={styles.listText}>
-          Forecasts are experimental wellness information. They are not diagnoses, do not identify causes, and should never delay professional care.
-        </Text>
-        <Text style={styles.consentVersion}>
-          CONSENT VERSION {account?.consent_version ?? "—"}
-          {forecast?.model_version ? ` · MODEL ${forecast.model_version}` : ""}
-        </Text>
-      </View>
-
       <View style={styles.dangerZone}>
         <Text style={styles.dangerTitle}>Delete everything</Text>
         <Text style={styles.detail}>
@@ -158,6 +141,11 @@ export default function PrivacyScreen(): React.ReactElement {
           onPress={confirmDelete}
         />
       </View>
+
+      <Text style={styles.consentVersion}>
+        CONSENT {account?.consent_version ?? "—"}
+        {forecast?.model_version ? ` · ${forecast.model_version}` : ""}
+      </Text>
     </Screen>
   );
 }
@@ -167,12 +155,6 @@ const styles = StyleSheet.create({
     gap: 8,
     paddingTop: 10,
     paddingBottom: 6,
-  },
-  eyebrow: {
-    color: colors.mineral,
-    fontFamily: type.mono,
-    fontSize: 10,
-    letterSpacing: 1.1,
   },
   title: {
     color: colors.ink,
@@ -186,14 +168,6 @@ const styles = StyleSheet.create({
     fontFamily: type.body,
     fontSize: 15,
     lineHeight: 22,
-  },
-  researchCard: {
-    backgroundColor: colors.amberSoft,
-    borderRadius: radius.large,
-    borderWidth: 1,
-    borderColor: "#E9D29F",
-    padding: 18,
-    gap: 14,
   },
   card: {
     backgroundColor: colors.white,
@@ -222,20 +196,6 @@ const styles = StyleSheet.create({
     fontFamily: type.body,
     fontSize: 12,
     lineHeight: 18,
-  },
-  badge: {
-    alignSelf: "flex-start",
-    borderRadius: radius.pill,
-    paddingVertical: 6,
-    paddingHorizontal: 9,
-    backgroundColor: colors.white,
-  },
-  badgeText: {
-    color: colors.plum,
-    fontFamily: type.mono,
-    fontSize: 9,
-    fontWeight: "700",
-    letterSpacing: 0.8,
   },
   finePrint: {
     color: colors.slate,
@@ -285,6 +245,7 @@ const styles = StyleSheet.create({
     fontFamily: type.mono,
     fontSize: 9,
     letterSpacing: 0.7,
+    textAlign: "center",
   },
   dangerZone: {
     backgroundColor: colors.dangerSoft,
