@@ -63,7 +63,7 @@ beforeEach(() => {
   logCycleDay.mockResolvedValue({ ok: true, value: undefined });
 });
 
-test("requires explicit online enablement and explains the boundary", async () => {
+test("keeps the calendar visible while history editing is disabled", async () => {
   jest.mocked(useApp).mockReturnValue({
     cycleSummary: null,
     cyclePendingCount: 0,
@@ -74,9 +74,9 @@ test("requires explicit online enablement and explains the boundary", async () =
   } as unknown as ReturnType<typeof useApp>);
 
   const screen = await render(<CycleScreen />);
-  expect(screen.getByText("What this does not do")).toBeTruthy();
-  expect(screen.getByText(/does not estimate fertility/)).toBeTruthy();
-  await fireEvent.press(screen.getByText("Enable cycle tracking"));
+  expect(screen.getByText("Estimated phases")).toBeTruthy();
+  expect(screen.getByText(/not fertility or contraception guidance/)).toBeTruthy();
+  await fireEvent.press(screen.getByText("Enable history editing"));
   await waitFor(() => expect(enableCycleTracking).toHaveBeenCalledTimes(1));
 });
 
@@ -92,6 +92,24 @@ test("logs the selected day and exposes selected accessibility state", async () 
       cycle_start_count: 1,
       pattern_status: "insufficient_data",
       patterns: [],
+      prediction_status: "ready",
+      prediction_confidence: "medium",
+      projected_through: "2026-09-19",
+      predicted_period_windows: [
+        {
+          start_date: "2026-08-15",
+          end_date: "2026-08-19",
+          confidence: "medium",
+        },
+      ],
+      phase_days: [
+        {
+          observed_date: today,
+          phase: "menstrual",
+          predicted: false,
+          confidence: "high",
+        },
+      ],
     },
     cyclePendingCount: 0,
     cycleSyncIssue: null,
@@ -102,6 +120,7 @@ test("logs the selected day and exposes selected accessibility state", async () 
 
   const screen = await render(<CycleScreen />);
   expect(screen.getByText("Cycle day 1")).toBeTruthy();
+  expect(screen.getByText(/Predicted period 1/)).toBeTruthy();
   const flow = screen
     .getAllByText("Flow")
     .map((item) => item.parent)

@@ -112,7 +112,7 @@ beforeEach(() => {
   wearableSleepHours.mockResolvedValue(null);
 });
 
-test("hides cycle questions and submits compatible defaults when disabled", async () => {
+test("requires a bleeding answer even when cycle-history editing is disabled", async () => {
   cycleContextForDate.mockResolvedValue({
     period_status: "none",
     cycle_day: null,
@@ -129,21 +129,28 @@ test("hides cycle questions and submits compatible defaults when disabled", asyn
   } as unknown as ReturnType<typeof useApp>);
 
   const screen = await render(<CheckInScreen />);
-  expect(screen.queryByText("Cycle context")).toBeNull();
+  expect(screen.getByText("Cycle context")).toBeTruthy();
   await completeRatings(screen);
+  await fireEvent.press(screen.getByText("Save today’s check-in"));
+  expect(
+    screen.getByText("Choose None, Spotting, or Flow for today’s bleeding."),
+  ).toBeTruthy();
+  expect(submitCheckIn).not.toHaveBeenCalled();
+
+  await fireEvent.press(screen.getByLabelText("Today’s bleeding: Spotting"));
   await fireEvent.press(screen.getByText("Save today’s check-in"));
 
   await waitFor(() => expect(submitCheckIn).toHaveBeenCalledTimes(1));
   expect(submitCheckIn.mock.calls[0]?.[0]).toEqual(
     expect.objectContaining({
-      period_status: "none",
+      period_status: "spotting",
       cycle_day: null,
     }),
   );
   expect(logCycleDay).not.toHaveBeenCalled();
 });
 
-test("prefills cycle status and writes the adjusted day before check-in", async () => {
+test("starts bleeding unselected and writes the deliberate answer to history", async () => {
   cycleContextForDate.mockResolvedValue({
     period_status: "flow",
     cycle_day: 2,
@@ -163,7 +170,11 @@ test("prefills cycle status and writes the adjusted day before check-in", async 
   await waitFor(() =>
     expect(screen.getByText("AUTOMATICALLY CALCULATED · CYCLE DAY 2")).toBeTruthy(),
   );
+  expect(
+    screen.getByLabelText("Today’s bleeding: Flow").props.accessibilityState,
+  ).toMatchObject({ selected: false });
   await completeRatings(screen);
+  await fireEvent.press(screen.getByLabelText("Today’s bleeding: Flow"));
   await fireEvent.press(screen.getByText("Save today’s check-in"));
 
   await waitFor(() => expect(logCycleDay).toHaveBeenCalledWith(expect.any(String), "flow"));
@@ -176,7 +187,7 @@ test("prefills cycle status and writes the adjusted day before check-in", async 
   );
 });
 
-test("refreshes mounted check-in context after cycle history changes", async () => {
+test("refreshes calculated cycle day without silently selecting bleeding", async () => {
   cycleContextForDate
     .mockResolvedValueOnce({ period_status: "flow", cycle_day: 1 })
     .mockResolvedValueOnce({ period_status: "spotting", cycle_day: 5 });
@@ -214,6 +225,6 @@ test("refreshes mounted check-in context after cycle history changes", async () 
   await waitFor(() =>
     expect(screen.getByText("AUTOMATICALLY CALCULATED · CYCLE DAY 5")).toBeTruthy(),
   );
-  const spotting = screen.getByText("Spotting").parent;
-  expect(spotting?.props.accessibilityState).toMatchObject({ selected: true });
+  const spotting = screen.getByLabelText("Today’s bleeding: Spotting");
+  expect(spotting?.props.accessibilityState).toMatchObject({ selected: false });
 });

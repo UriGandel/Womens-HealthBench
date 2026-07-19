@@ -102,6 +102,11 @@ export function applyCycleDay(
     cycle_start_count: starts.length,
     pattern_status: "insufficient_data",
     patterns: [],
+    prediction_status: "insufficient_data",
+    prediction_confidence: null,
+    projected_through: null,
+    predicted_period_windows: [],
+    phase_days: [],
   };
 }
 
@@ -110,10 +115,10 @@ export function localCycleSummary(
   days: ReadonlyArray<CycleDayRecord>,
   today: string,
 ): CycleTrackingSummary {
-  const currentCycleDay = enabled ? cycleDayForDate(days, today) : null;
+  const currentCycleDay = cycleDayForDate(days, today);
   return {
     enabled,
-    days: enabled ? days : [],
+    days,
     current_cycle_day: currentCycleDay,
     cycle_started_on:
       currentCycleDay === null ? null : addDays(today, -(currentCycleDay - 1)),
@@ -121,5 +126,10 @@ export function localCycleSummary(
     cycle_start_count: 0,
     pattern_status: "insufficient_data",
     patterns: [],
+    prediction_status: "insufficient_data",
+    prediction_confidence: null,
+    projected_through: null,
+    predicted_period_windows: [],
+    phase_days: [],
   };
 }

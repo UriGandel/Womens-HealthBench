@@ -62,6 +62,7 @@ export interface AccountSummary {
   readonly wearable_connected: boolean;
   readonly wearable_platform: WearablePlatform | null;
   readonly wearable_day_count: number;
+  readonly wearable_interval_count: number;
   readonly wearable_last_synced_at: string | null;
   readonly cycle_tracking_enabled: boolean;
   readonly cycle_day_count: number;
@@ -99,6 +100,26 @@ export interface CycleTrackingSummary {
   readonly cycle_start_count: number;
   readonly pattern_status: "ready" | "insufficient_data";
   readonly patterns: ReadonlyArray<CyclePattern>;
+  readonly prediction_status: "ready" | "insufficient_data" | "variable";
+  readonly prediction_confidence: Confidence | null;
+  readonly projected_through: string | null;
+  readonly predicted_period_windows: ReadonlyArray<PredictedPeriodWindow>;
+  readonly phase_days: ReadonlyArray<CyclePhaseDay>;
+}
+
+export interface PredictedPeriodWindow {
+  readonly start_date: string;
+  readonly end_date: string;
+  readonly confidence: "low" | "medium";
+}
+
+export type CyclePhase = "menstrual" | "follicular" | "ovulatory" | "luteal";
+
+export interface CyclePhaseDay {
+  readonly observed_date: string;
+  readonly phase: CyclePhase;
+  readonly predicted: boolean;
+  readonly confidence: Confidence;
 }
 
 export interface CycleDeleteResponse {
@@ -132,6 +153,38 @@ export interface WearableSyncRequest {
 export interface WearableSyncResponse {
   readonly accepted_days: number;
   readonly deleted_days: number;
+  readonly duplicate: boolean;
+  readonly last_synced_at: string;
+}
+
+export interface WearableIntervalRecord {
+  readonly observed_date: string;
+  readonly bucket_start_hour: 0 | 6 | 12 | 18;
+  readonly platform: WearablePlatform;
+  readonly steps: number | null;
+  readonly activity_minutes: number | null;
+  readonly active_energy_kcal: number | null;
+  readonly heart_rate_avg_bpm: number | null;
+  readonly heart_rate_min_bpm: number | null;
+  readonly heart_rate_max_bpm: number | null;
+  readonly heart_rate_sample_count: number | null;
+  readonly hrv_avg_ms: number | null;
+  readonly hrv_sample_count: number | null;
+  readonly hrv_method: HrvMethod | null;
+  readonly respiratory_rate_avg_bpm: number | null;
+  readonly respiratory_rate_sample_count: number | null;
+  readonly oxygen_saturation_avg_pct: number | null;
+  readonly oxygen_saturation_sample_count: number | null;
+}
+
+export interface WearableIntervalSyncRequest {
+  readonly sync_id: string;
+  readonly records: ReadonlyArray<WearableIntervalRecord>;
+}
+
+export interface WearableIntervalSyncResponse {
+  readonly accepted_intervals: number;
+  readonly deleted_intervals: number;
   readonly duplicate: boolean;
   readonly last_synced_at: string;
 }

@@ -60,7 +60,7 @@ export default function CheckInScreen(): React.ReactElement {
     logCycleDay,
   } = useApp();
   const router = useRouter();
-  const [periodStatus, setPeriodStatus] = useState<PeriodStatus>("none");
+  const [periodStatus, setPeriodStatus] = useState<PeriodStatus | null>(null);
   const [cycleDay, setCycleDay] = useState<number | null>(null);
   const [sleepHours, setSleepHours] = useState("");
   const [sleepPrefilled, setSleepPrefilled] = useState(false);
@@ -84,14 +84,8 @@ export default function CheckInScreen(): React.ReactElement {
 
   useEffect(() => {
     let active = true;
-    if (!cycleSummary?.enabled) {
-      setPeriodStatus("none");
-      setCycleDay(null);
-      return;
-    }
     void cycleContextForDate(localDateString()).then((context) => {
       if (!active) return;
-      setPeriodStatus(context.period_status);
       setCycleDay(context.cycle_day);
     });
     return () => {
@@ -104,6 +98,10 @@ export default function CheckInScreen(): React.ReactElement {
   };
 
   const submit = async (): Promise<void> => {
+    if (periodStatus === null) {
+      setError("Choose None, Spotting, or Flow for today’s bleeding.");
+      return;
+    }
     const parsedSleep = sleepHours.trim() ? Number(sleepHours) : null;
     if (parsedSleep === null || !Number.isFinite(parsedSleep) || parsedSleep < 0 || parsedSleep > 24) {
       setError("Enter your hours of sleep (0–24).");
@@ -142,8 +140,8 @@ export default function CheckInScreen(): React.ReactElement {
     const result = await submitCheckIn({
       client_submission_id: Crypto.randomUUID(),
       observed_date: localDateString(),
-      period_status: cycleSummary?.enabled ? periodStatus : "none",
-      cycle_day: cycleSummary?.enabled ? submittedCycleDay : null,
+      period_status: periodStatus,
+      cycle_day: submittedCycleDay,
       sleep_hours: parsedSleep,
       sleep_quality: sleepQuality,
       stress,
@@ -182,40 +180,41 @@ export default function CheckInScreen(): React.ReactElement {
       ) : null}
       {syncIssue ? <Notice text={syncIssue} tone="warning" /> : null}
 
-      {cycleSummary?.enabled ? (
-        <View style={styles.card}>
-          <Text style={styles.sectionTitle}>Cycle context</Text>
-          <Text style={styles.fieldLabel}>Today’s bleeding</Text>
-          <View style={styles.segmented}>
-            {PERIOD_OPTIONS.map((option) => (
-              <Pressable
-                key={option.value}
-                accessibilityRole="button"
-                accessibilityState={{ selected: periodStatus === option.value }}
-                onPress={() => setPeriodStatus(option.value)}
+      <View style={styles.card}>
+        <Text style={styles.sectionTitle}>Cycle context</Text>
+        <Text style={styles.fieldLabel}>Today’s bleeding</Text>
+        <View style={styles.segmented}>
+          {PERIOD_OPTIONS.map((option) => (
+            <Pressable
+              key={option.value}
+              accessibilityLabel={`Today’s bleeding: ${option.label}`}
+              accessibilityRole="button"
+              accessibilityState={{ selected: periodStatus === option.value }}
+              onPress={() => setPeriodStatus(option.value)}
+              style={[
+                styles.segment,
+                periodStatus === option.value && styles.segmentSelected,
+              ]}
+            >
+              <Text
                 style={[
-                  styles.segment,
-                  periodStatus === option.value && styles.segmentSelected,
+                  styles.segmentLabel,
+                  periodStatus === option.value && styles.segmentLabelSelected,
                 ]}
               >
-                <Text
-                  style={[
-                    styles.segmentLabel,
-                    periodStatus === option.value && styles.segmentLabelSelected,
-                  ]}
-                >
-                  {option.label}
-                </Text>
-              </Pressable>
-            ))}
-          </View>
-          <Text style={styles.helper}>
-            {cycleDay === null
-              ? "CYCLE DAY IS AVAILABLE AFTER A FLOW START IS LOGGED"
-              : `AUTOMATICALLY CALCULATED · CYCLE DAY ${cycleDay}`}
-          </Text>
+                {option.label}
+              </Text>
+            </Pressable>
+          ))}
         </View>
-      ) : null}
+        <Text style={styles.helper}>
+          {cycleDay === null
+            ? cycleSummary?.enabled
+              ? "CYCLE DAY IS AVAILABLE AFTER A FLOW START IS LOGGED"
+              : "REQUIRED FOR THIS CHECK-IN · HISTORY EDITING IS OPTIONAL"
+            : `AUTOMATICALLY CALCULATED · CYCLE DAY ${cycleDay}`}
+        </Text>
+      </View>
 
       <View style={styles.card}>
         <Text style={styles.sectionTitle}>Sleep & load</Text>

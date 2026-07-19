@@ -52,7 +52,7 @@ export default function ConsentScreen(): React.ReactElement {
   return (
     <Screen>
       <View style={styles.header}>
-        <Text style={styles.eyebrow}>CONSENT HEALTH V1</Text>
+        <Text style={styles.eyebrow}>CONSENT INTRADAY + CYCLE V2</Text>
         <Text style={styles.title}>Review how participation works.</Text>
         <Text style={styles.subtitle}>
           Research contribution is now required while you use the private forecasting study.
@@ -66,8 +66,9 @@ export default function ConsentScreen(): React.ReactElement {
           <View style={styles.toggleCopy}>
             <Text style={styles.toggleTitle}>Operate the forecasting app</Text>
             <Text style={styles.detail}>
-              Store encrypted check-ins and optional health-app daily summaries
-              to create and evaluate experimental forecasts.
+              Store encrypted check-ins, daily summaries, and completed six-hour
+              health aggregates. Approximate cycle phases may be displayed for
+              wellness context but do not change the current forecast.
             </Text>
           </View>
           <Switch
@@ -82,9 +83,9 @@ export default function ConsentScreen(): React.ReactElement {
           <View style={styles.toggleCopy}>
             <Text style={styles.toggleTitle}>Continue research participation</Text>
             <Text style={styles.detail}>
-              Contribute each accepted check-in and imported health-app day as
-              pseudonymous, structured research records. You can disconnect and
-              delete imported health data without deleting manual check-ins.
+              Contribute accepted check-ins plus daily and six-hour health
+              aggregates as separate pseudonymous research records. Reported
+              bleeding is included; inferred cycle phases are excluded.
             </Text>
           </View>
           <Switch
@@ -98,9 +99,10 @@ export default function ConsentScreen(): React.ReactElement {
 
       <Text style={styles.finePrint}>
         Pseudonymous research records exclude names, email, free text, precise
-        location, contacts, advertising IDs, raw sensor samples, device and
-        source-app identifiers, and absolute calendar dates. Imported summaries
-        are retained until disconnection or account deletion.
+        location, raw sensor samples and timestamps, device and source-app
+        identifiers, and absolute calendar dates. Imported summaries include
+        ordinary heart-rate aggregates and are retained until disconnection or
+        account deletion.
       </Text>
       {!isOnline ? (
         <Notice

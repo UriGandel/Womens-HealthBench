@@ -26,6 +26,7 @@ const METRICS = [
   "Exercise minutes",
   "Active energy",
   "Resting heart rate",
+  "Ordinary heart rate (six-hour average, minimum, and maximum)",
   "Heart-rate variability",
   "Respiratory rate",
   "Blood oxygen",
@@ -63,7 +64,7 @@ export default function HealthDataScreen(): React.ReactElement {
     const result = await connectHealth();
     setMessage(
       result.ok
-        ? "Health data connected. Available daily summaries were imported."
+        ? "Health data connected. Available daily and completed six-hour summaries were imported."
         : result.message,
     );
   };
@@ -122,10 +123,11 @@ export default function HealthDataScreen(): React.ReactElement {
 
       <View style={styles.header}>
         <Text style={styles.eyebrow}>READ-ONLY HEALTH CONNECTION</Text>
-        <Text style={styles.title}>Daily signals from your watch.</Text>
+        <Text style={styles.title}>Signals through your day.</Text>
         <Text style={styles.subtitle}>
-          Import up to 31 days of daily summaries. Raw sensor samples, routes,
-          device identifiers, and source-app identifiers never leave the health store.
+          Import up to 31 days of daily summaries and completed six-hour
+          aggregates. Raw samples and timestamps, routes, device identifiers,
+          and source-app identifiers never leave the health store.
         </Text>
       </View>
 
@@ -157,7 +159,7 @@ export default function HealthDataScreen(): React.ReactElement {
             </Text>
             <Text style={styles.statusDetail}>
               {connected
-                ? `${account?.wearable_day_count ?? 0} days found · Last sync ${formatSyncTime(account?.wearable_last_synced_at)}`
+                ? `${account?.wearable_day_count ?? 0} days · ${account?.wearable_interval_count ?? 0} completed six-hour summaries · Last sync ${formatSyncTime(account?.wearable_last_synced_at)}`
                 : availability.platform === "apple_health"
                   ? "Apple Health"
                   : "Android Health Connect"}
@@ -183,7 +185,7 @@ export default function HealthDataScreen(): React.ReactElement {
       </View>
 
       <View style={styles.card}>
-        <Text style={styles.cardLabel}>SUPPORTED DAILY SUMMARIES</Text>
+        <Text style={styles.cardLabel}>SUPPORTED HEALTH SUMMARIES</Text>
         {METRICS.map((metric) => (
           <View key={metric} style={styles.metricRow}>
             <Ionicons name="checkmark-circle-outline" size={18} color={colors.mineral} />
@@ -193,7 +195,9 @@ export default function HealthDataScreen(): React.ReactElement {
         <Text style={styles.finePrint}>
           Permission is granular. A blank metric can mean no measurement, limited
           history, an unsupported sensor, or permission not granted; it is never
-          converted to zero.
+          converted to zero. Sleep, resting heart rate, and temperature stay
+          daily; activity and other heart-health signals also use four completed
+          six-hour buckets.
         </Text>
       </View>
 

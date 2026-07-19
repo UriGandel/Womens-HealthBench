@@ -1,18 +1,25 @@
 import { beforeEach, expect, test } from "@jest/globals";
 
-import type { CheckInCreate, WearableDailyRecord } from "@/types";
+import type {
+  CheckInCreate,
+  WearableDailyRecord,
+  WearableIntervalRecord,
+} from "@/types";
 
 import {
   cacheWearableDays,
+  cacheWearableIntervals,
   cacheCycleDays,
   cachedCycleDays,
   cachedWearableDay,
+  cachedWearableIntervals,
   clearAccessToken,
   clearLocalHealthData,
   cycleQueueCount,
   enqueueCycleSync,
   enqueueCheckIn,
   enqueueWearableSync,
+  enqueueWearableIntervalSync,
   getAccessToken,
   getStoredConsentVersion,
   getCycleTrackingEnabled,
@@ -20,6 +27,7 @@ import {
   queueCount,
   queuedCheckIns,
   queuedWearableSyncs,
+  queuedWearableIntervalSyncs,
   saveAccessToken,
   saveStoredConsentVersion,
   setCycleTrackingEnabled,
@@ -57,6 +65,26 @@ const WEARABLE_DAY: WearableDailyRecord = {
   peripheral_temperature_delta_c: null,
 };
 
+const WEARABLE_INTERVAL: WearableIntervalRecord = {
+  observed_date: "2026-07-19",
+  bucket_start_hour: 6,
+  platform: "apple_health",
+  steps: 1800,
+  activity_minutes: null,
+  active_energy_kcal: null,
+  heart_rate_avg_bpm: null,
+  heart_rate_min_bpm: null,
+  heart_rate_max_bpm: null,
+  heart_rate_sample_count: null,
+  hrv_avg_ms: null,
+  hrv_sample_count: null,
+  hrv_method: null,
+  respiratory_rate_avg_bpm: null,
+  respiratory_rate_sample_count: null,
+  oxygen_saturation_avg_pct: null,
+  oxygen_saturation_sample_count: null,
+};
+
 beforeEach(async () => {
   await clearLocalHealthData();
   await clearAccessToken();
@@ -76,11 +104,20 @@ test("keeps the preview session and check-in queue in memory", async () => {
 test("supports the wearable storage contract without persistent browser data", async () => {
   await cacheWearableDays([WEARABLE_DAY]);
   await enqueueWearableSync({ sync_id: "wearable-1", records: [WEARABLE_DAY] });
+  await cacheWearableIntervals([WEARABLE_INTERVAL]);
+  await enqueueWearableIntervalSync({
+    sync_id: "interval-1",
+    records: [WEARABLE_INTERVAL],
+  });
   await saveWearableState("apple_health", "2026-07-19T12:00:00.000Z", "UTC");
 
   expect(await cachedWearableDay("2026-07-19")).toEqual(WEARABLE_DAY);
-  expect(await wearableQueueCount()).toBe(1);
+  expect(await cachedWearableIntervals("2026-07-19")).toEqual([
+    WEARABLE_INTERVAL,
+  ]);
+  expect(await wearableQueueCount()).toBe(2);
   expect(await queuedWearableSyncs()).toHaveLength(1);
+  expect(await queuedWearableIntervalSyncs()).toHaveLength(1);
   expect(await getWearableState()).toEqual({
     platform: "apple_health",
     last_read_at: "2026-07-19T12:00:00.000Z",

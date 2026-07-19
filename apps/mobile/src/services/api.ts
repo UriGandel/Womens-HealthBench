@@ -11,6 +11,8 @@ import type {
   ForecastResponse,
   Result,
   WearableDeleteResponse,
+  WearableIntervalSyncRequest,
+  WearableIntervalSyncResponse,
   WearableSyncRequest,
   WearableSyncResponse,
 } from "@/types";
@@ -24,6 +26,7 @@ import {
   forecastResponseSchema,
   messageResponseSchema,
   wearableDeleteResponseSchema,
+  wearableIntervalSyncResponseSchema,
   wearableSyncResponseSchema,
 } from "@/validation";
 import type { ZodType } from "zod";
@@ -193,6 +196,18 @@ export function sendWearableDays(
     "/v1/wearable-days:sync",
     { method: "POST", body: JSON.stringify(payload) },
     wearableSyncResponseSchema,
+    token,
+  );
+}
+
+export function sendWearableIntervals(
+  token: string,
+  payload: WearableIntervalSyncRequest,
+): Promise<Result<WearableIntervalSyncResponse>> {
+  return request<WearableIntervalSyncResponse>(
+    "/v1/wearable-intervals:sync",
+    { method: "POST", body: JSON.stringify(payload) },
+    wearableIntervalSyncResponseSchema,
     token,
   );
 }

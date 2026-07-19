@@ -47,7 +47,7 @@
       "typedRoutes": true
     },
     "extra": {
-      "consentVersion": "2026-07-19-health-v1"
+      "consentVersion": "2026-07-19-intraday-cycle-v2"
     }
   }
 }

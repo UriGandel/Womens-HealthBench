@@ -68,12 +68,13 @@ beforeEach(() => {
   jest.mocked(useApp).mockReturnValue({
     account: {
       consent_current: true,
-      consent_version: "2026-07-19-health-v1",
+      consent_version: "2026-07-19-intraday-cycle-v2",
       checkin_count: 4,
       research_record_count: 6,
       wearable_connected: true,
       wearable_platform: "apple_health",
       wearable_day_count: 3,
+      wearable_interval_count: 8,
       wearable_last_synced_at: "2026-07-19T12:00:00Z",
       cycle_tracking_enabled: false,
       cycle_day_count: 0,

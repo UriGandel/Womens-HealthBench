@@ -97,11 +97,36 @@ export default function CycleScreen(): React.ReactElement {
       ),
     [cycleSummary?.days],
   );
+  const phasesByDate = useMemo(
+    () =>
+      new Map(
+        (cycleSummary?.phase_days ?? []).map((day) => [
+          day.observed_date,
+          day,
+        ]),
+      ),
+    [cycleSummary?.phase_days],
+  );
+  const ovulatoryRange = useMemo(() => {
+    const dates = (cycleSummary?.phase_days ?? [])
+      .filter((day) => day.predicted && day.phase === "ovulatory")
+      .map((day) => day.observed_date)
+      .sort();
+    return dates.length === 0
+      ? null
+      : { start: dates[0] ?? "", end: dates.at(-1) ?? "" };
+  }, [cycleSummary?.phase_days]);
   const cells = useMemo(() => monthCells(visibleMonth), [visibleMonth]);
   const selectedStatus = daysByDate.get(selectedDate) ?? null;
   const selectedCycleDay = cycleDayForDate(cycleSummary?.days ?? [], selectedDate);
   const canGoBack = !sameMonth(visibleMonth, monthStart(earliest));
-  const canGoForward = !sameMonth(visibleMonth, monthStart(today));
+  const latestCalendarDate = cycleSummary?.projected_through
+    ? localDate(cycleSummary.projected_through)
+    : today;
+  const canGoForward = !sameMonth(
+    visibleMonth,
+    monthStart(latestCalendarDate),
+  );
 
   const enable = async (): Promise<void> => {
     setSaving(true);
@@ -119,67 +144,45 @@ export default function CycleScreen(): React.ReactElement {
     setSaving(false);
   };
 
-  if (!cycleSummary?.enabled) {
-    return (
-      <Screen>
-        <View style={styles.hero}>
-          <View style={styles.heroIcon}>
-            <Ionicons name="calendar-outline" size={25} color={colors.plum} />
-          </View>
-          <Text style={styles.eyebrow}>OPTIONAL CYCLE HISTORY</Text>
-          <Text style={styles.title}>Notice patterns, gently.</Text>
-          <Text style={styles.subtitle}>
-            Log spotting or flow and compare it with your symptom check-ins. Cycle
-            history is sensitive operational data and is not added to research
-            unless it appears in a completed check-in.
-          </Text>
-        </View>
-        <View style={styles.card}>
-          <Text style={styles.sectionTitle}>What this does</Text>
-          <Text style={styles.detail}>
-            Calculates cycle day after a logged flow start, keeps 120 days of
-            editable history, and shows personal associations once enough records
-            are available.
-          </Text>
-          <View style={styles.rule} />
-          <Text style={styles.sectionTitle}>What this does not do</Text>
-          <Text style={styles.detail}>
-            It does not estimate fertility, ovulation, future phases, or your next
-            period. It is not medical advice.
-          </Text>
-        </View>
-        {!isOnline ? (
-          <Notice
-            tone="warning"
-            text="A secure connection is required to enable cycle tracking."
-          />
-        ) : null}
-        {message ? <Notice tone="warning" text={message} /> : null}
-        <Button
-          label="Enable cycle tracking"
-          disabled={!isOnline}
-          loading={saving}
-          onPress={() => void enable()}
-        />
-      </Screen>
-    );
-  }
-
   return (
     <Screen>
       <View style={styles.header}>
         <Text style={styles.eyebrow}>YOUR CYCLE</Text>
         <Text style={styles.title}>
-          {cycleSummary.current_cycle_day === null
+          {cycleSummary?.current_cycle_day == null
             ? "Not enough history yet"
             : `Cycle day ${cycleSummary.current_cycle_day}`}
         </Text>
         <Text style={styles.subtitle}>
-          {cycleSummary.current_cycle_day === null
-            ? "Log a flow start to begin automatic cycle-day counting."
+          {cycleSummary?.current_cycle_day == null
+            ? "Answer the bleeding question in each check-in to build your calendar."
             : "Calculated from your latest logged flow start."}
         </Text>
       </View>
+
+      {!cycleSummary?.enabled ? (
+        <View style={styles.hero}>
+          <Text style={styles.eyebrow}>OPTIONAL HISTORY EDITING</Text>
+          <Text style={styles.sectionTitle}>Add or correct past dates</Text>
+          <Text style={styles.detail}>
+            Your check-in answers already contribute to this calendar. Enable
+            history editing only if you want to add or correct dates outside a
+            completed check-in.
+          </Text>
+          {!isOnline ? (
+            <Notice
+              tone="warning"
+              text="A secure connection is required to enable history editing."
+            />
+          ) : null}
+          <Button
+            label="Enable history editing"
+            disabled={!isOnline}
+            loading={saving}
+            onPress={() => void enable()}
+          />
+        </View>
+      ) : null}
 
       {!isOnline ? (
         <Notice text="You’re offline. Cycle edits will stay encrypted on this device and sync later." />
@@ -231,7 +234,12 @@ export default function CycleScreen(): React.ReactElement {
             if (!date) return <View key={`blank-${index}`} style={styles.dayCell} />;
             const value = localDateString(date);
             const status = daysByDate.get(value);
-            const selectable = value >= earliestString && value <= todayString;
+            const phase = phasesByDate.get(value);
+            const withinCalendar = value <= localDateString(latestCalendarDate);
+            const selectable =
+              cycleSummary?.enabled === true &&
+              value >= earliestString &&
+              value <= todayString;
             const selected = value === selectedDate;
             return (
               <Pressable
@@ -241,9 +249,18 @@ export default function CycleScreen(): React.ReactElement {
                 accessibilityState={{ disabled: !selectable, selected }}
                 disabled={!selectable}
                 onPress={() => setSelectedDate(value)}
-                style={[styles.dayCell, !selectable && styles.disabled]}
+                style={[styles.dayCell, !withinCalendar && styles.disabled]}
               >
-                <View style={[styles.daySurface, selected && styles.daySelected]}>
+                <View
+                  style={[
+                    styles.daySurface,
+                    phase?.phase === "menstrual" && styles.menstrualDay,
+                    phase?.phase === "follicular" && styles.follicularDay,
+                    phase?.phase === "ovulatory" && styles.ovulatoryDay,
+                    phase?.phase === "luteal" && styles.lutealDay,
+                    selected && selectable && styles.daySelected,
+                  ]}
+                >
                   <Text style={[styles.dayNumber, selected && styles.dayNumberSelected]}>
                     {date.getDate()}
                   </Text>
@@ -267,9 +284,30 @@ export default function CycleScreen(): React.ReactElement {
           <View style={[styles.dayMark, styles.flowMark]} />
           <Text style={styles.legendText}>Flow</Text>
         </View>
+        <View style={styles.phaseLegend}>
+          {(["menstrual", "follicular", "ovulatory", "luteal"] as const).map(
+            (phase) => (
+              <View key={phase} style={styles.phaseLegendItem}>
+                <View
+                  style={[
+                    styles.phaseSwatch,
+                    phase === "menstrual" && styles.menstrualDay,
+                    phase === "follicular" && styles.follicularDay,
+                    phase === "ovulatory" && styles.ovulatoryDay,
+                    phase === "luteal" && styles.lutealDay,
+                  ]}
+                />
+                <Text style={styles.legendText}>
+                  {phase[0]?.toUpperCase()}
+                  {phase.slice(1)}
+                </Text>
+              </View>
+            ),
+          )}
+        </View>
       </View>
 
-      <View style={styles.card}>
+      {cycleSummary?.enabled ? <View style={styles.card}>
         <Text style={styles.sectionTitle}>{displayDate(selectedDate)}</Text>
         <Text style={styles.detail}>
           {selectedCycleDay === null
@@ -300,11 +338,47 @@ export default function CycleScreen(): React.ReactElement {
             </Pressable>
           ))}
         </View>
+      </View> : null}
+
+      <View style={styles.card}>
+        <Text style={styles.sectionTitle}>Estimated phases</Text>
+        {cycleSummary?.prediction_status === "ready" ? (
+          <>
+            <Text style={styles.detail}>
+              Calendar estimate through {cycleSummary.projected_through}.
+              Confidence is {cycleSummary.prediction_confidence ?? "low"} and
+              decreases further into the future.
+            </Text>
+            {cycleSummary.predicted_period_windows.map((window, index) => (
+              <Text key={`${window.start_date}-${index}`} style={styles.detail}>
+                Predicted period {index + 1}: {window.start_date}–{window.end_date}
+                {" · "}{window.confidence} confidence
+              </Text>
+            ))}
+            {ovulatoryRange ? (
+              <Text style={styles.detail}>
+                Estimated ovulatory range: {ovulatoryRange.start}–
+                {ovulatoryRange.end}
+              </Text>
+            ) : null}
+          </>
+        ) : (
+          <Text style={styles.detail}>
+            {cycleSummary?.prediction_status === "variable"
+              ? "Your recent cycle lengths vary too much for a useful calendar estimate."
+              : "Phase estimates appear after at least three observed flow starts."}
+          </Text>
+        )}
+        <Text style={styles.finePrint}>
+          These approximate wellness estimates do not confirm ovulation and are
+          not fertility or contraception guidance. Calendar-only estimates may
+          be unreliable with irregular bleeding.
+        </Text>
       </View>
 
       <View style={styles.card}>
         <Text style={styles.sectionTitle}>Your patterns</Text>
-        {cycleSummary.observed_cycle_length_days !== null ? (
+        {cycleSummary?.observed_cycle_length_days != null ? (
           <View style={styles.patternRow}>
             <Text style={styles.patternValue}>
               {cycleSummary.observed_cycle_length_days}
@@ -314,7 +388,7 @@ export default function CycleScreen(): React.ReactElement {
             </Text>
           </View>
         ) : null}
-        {cycleSummary.patterns.map((pattern) => (
+        {(cycleSummary?.patterns ?? []).map((pattern) => (
           <View key={pattern.label} style={styles.patternItem}>
             <View style={styles.patternIcon}>
               <Ionicons
@@ -329,12 +403,12 @@ export default function CycleScreen(): React.ReactElement {
             </View>
           </View>
         ))}
-        {cycleSummary.pattern_status === "insufficient_data" ? (
+        {cycleSummary?.pattern_status === "insufficient_data" ? (
           <Text style={styles.detail}>
             Patterns appear after three flow starts and at least three check-ins
             on bleeding days and three on other days.
           </Text>
-        ) : cycleSummary.patterns.length === 0 ? (
+        ) : cycleSummary?.patterns.length === 0 ? (
           <Text style={styles.detail}>
             There is enough history, but no symptom difference met the display
             threshold. That is a valid result.
@@ -476,6 +550,10 @@ const styles = StyleSheet.create({
   calendarMark: { position: "absolute", bottom: 3 },
   spottingMark: { backgroundColor: colors.amber },
   flowMark: { backgroundColor: colors.plum },
+  menstrualDay: { backgroundColor: colors.dangerSoft },
+  follicularDay: { backgroundColor: colors.mineralSoft },
+  ovulatoryDay: { backgroundColor: colors.amberSoft },
+  lutealDay: { backgroundColor: colors.fog },
   disabled: { opacity: 0.28 },
   legend: {
     flexDirection: "row",
@@ -490,6 +568,24 @@ const styles = StyleSheet.create({
     fontFamily: type.body,
     fontSize: 10,
     marginRight: 7,
+  },
+  phaseLegend: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    justifyContent: "center",
+    gap: 8,
+  },
+  phaseLegendItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+  },
+  phaseSwatch: {
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: colors.line,
   },
   segmented: {
     flexDirection: "row",

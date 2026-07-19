@@ -16,7 +16,7 @@ import { useApp } from "@/providers/AppProvider";
 import { getHealthAvailability } from "@/services/healthData";
 import { colors, radius, type } from "@/theme";
 
-const CONSENT_VERSION = "2026-07-19-health-v1";
+const CONSENT_VERSION = "2026-07-19-intraday-cycle-v2";
 const STEPS = ["Disclaimers", "Consent", "Health sync"] as const;
 
 const DISCLAIMERS: ReadonlyArray<{
@@ -35,7 +35,7 @@ const DISCLAIMERS: ReadonlyArray<{
   {
     title: "Your data",
     detail:
-      "Check-ins are stored encrypted to run the app and build forecasts. Optional cycle history is enabled separately. No free text, location, contacts, or ad identifiers.",
+      "Check-ins and optional health summaries are stored encrypted. Every check-in asks about bleeding; separate cycle-history editing remains optional.",
   },
 ];
 
@@ -231,7 +231,7 @@ export default function EnrollScreen(): React.ReactElement {
     },
     {
       title: "Make your forecast more personal.",
-      subtitle: `Optionally sync daily signals from ${healthName}.`,
+      subtitle: `Optionally sync daily and six-hour signals from ${healthName}.`,
     },
   ][step];
 
@@ -269,12 +269,16 @@ export default function EnrollScreen(): React.ReactElement {
           <Text style={styles.required}>REQUIRED RESEARCH PARTICIPATION</Text>
           <YesNoRow
             title="Contribute pseudonymous records"
-            detail="Every accepted check-in and health-app summary you choose to import contributes to forecasting evaluation and the research dataset. Delete your account at any time to leave and remove all records."
+            detail="Every accepted check-in and health-app summary you choose to import contributes to research. Six-hour aggregates are kept separate from the current forecast."
             value={research}
             onChange={setResearch}
           />
           <Text style={styles.finePrint}>
-            Records are pseudonymous, not anonymous. Imported health data is retained as daily summaries until you disconnect it or delete your account. We never import raw samples, routes, location, device IDs, source-app IDs, or reproductive and clinical records. Any cycle history is entered manually and enabled separately.
+            Records are pseudonymous, not anonymous. Imported data includes daily
+            summaries and completed six-hour aggregates, including ordinary heart
+            rate. Raw sensor samples, timestamps, routes, location, and device or
+            source-app IDs are excluded. Approximate cycle phases may be shown in
+            the app but are not research labels or fertility guidance.
           </Text>
           <Text style={styles.consentVersion}>
             By continuing, you accept consent version {CONSENT_VERSION}.
@@ -304,8 +308,8 @@ export default function EnrollScreen(): React.ReactElement {
               </Text>
               <Text style={styles.healthDetail}>
                 {healthConnected
-                  ? "Your available daily summaries have been securely imported."
-                  : "Add sleep, steps, activity, and heart-health trends to help improve your daily signal."}
+                  ? "Your available daily and completed six-hour summaries have been securely imported."
+                  : "Add sleep plus intraday activity and heart-health trends. These new fields do not change the current forecast."}
               </Text>
             </View>
           </View>
@@ -327,7 +331,7 @@ export default function EnrollScreen(): React.ReactElement {
             <View style={styles.healthDetailRow}>
               <Ionicons name="calendar-outline" size={19} color={colors.mineral} />
               <Text style={styles.healthDetailText}>
-                Imports up to 31 days of daily summaries
+                Imports up to 31 days of daily and completed six-hour summaries
               </Text>
             </View>
             <View style={styles.healthDetailRow}>

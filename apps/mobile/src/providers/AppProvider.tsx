@@ -69,7 +69,7 @@ import type {
 import { applyCycleDay, checkInCycleContext, localCycleSummary } from "@/utils/cycle";
 import { localDateString } from "@/utils/date";
 
-const CONSENT_VERSION = "2026-07-19-health-v1";
+const CONSENT_VERSION = "2026-07-19-intraday-cycle-v2";
 const BACKGROUND_LOCK_MS = 5 * 60 * 1000;
 
 interface AppContextValue {
@@ -136,6 +136,7 @@ export function AppProvider({ children }: PropsWithChildren): React.ReactElement
   const [isHealthSyncing, setIsHealthSyncing] = useState(false);
   const [isFinishingEnrollment, setIsFinishingEnrollment] = useState(false);
   const backgroundedAt = useRef<number | null>(null);
+  const refreshInFlight = useRef<Promise<void> | null>(null);
   const [lastCheckInDate, setLastCheckInDate] = useState<string | null>(null);
   const router = useRouter();
   const segments = useSegments();
@@ -154,7 +155,7 @@ export function AppProvider({ children }: PropsWithChildren): React.ReactElement
     setCycleSyncIssue(null);
   }, []);
 
-  const refresh = useCallback(async (): Promise<void> => {
+  const performRefresh = useCallback(async (): Promise<void> => {
     if (!token || isLocked) return;
     setIsRefreshing(true);
     try {
@@ -190,11 +191,16 @@ export function AppProvider({ children }: PropsWithChildren): React.ReactElement
         const updatedAccount = await getAccount(token);
         if (updatedAccount.ok) setAccount(updatedAccount.value);
       }
-      if (accountResult.ok && accountResult.value.cycle_tracking_enabled) {
-        await setCycleTrackingEnabled(true);
-        const cycleSync = await syncQueuedCycleDays(token);
-        setCyclePendingCount(cycleSync.remaining);
-        setCycleSyncIssue(cycleSync.rejected ?? null);
+      if (accountResult.ok) {
+        await setCycleTrackingEnabled(accountResult.value.cycle_tracking_enabled);
+        if (accountResult.value.cycle_tracking_enabled) {
+          const cycleSync = await syncQueuedCycleDays(token);
+          setCyclePendingCount(cycleSync.remaining);
+          setCycleSyncIssue(cycleSync.rejected ?? null);
+        } else {
+          setCyclePendingCount(0);
+          setCycleSyncIssue(null);
+        }
         const cycleResult = await getCycleTracking(token, localDateString());
         if (cycleResult.ok) {
           setCycleSummary(cycleResult.value);
@@ -202,11 +208,6 @@ export function AppProvider({ children }: PropsWithChildren): React.ReactElement
           const updatedAccount = await getAccount(token);
           if (updatedAccount.ok) setAccount(updatedAccount.value);
         }
-      } else if (accountResult.ok) {
-        setCycleSummary(localCycleSummary(false, [], localDateString()));
-        setCyclePendingCount(0);
-        setCycleSyncIssue(null);
-        await clearLocalCycleData();
       }
       const forecastResult = await getForecast(token);
       if (forecastResult.ok) setForecast(forecastResult.value);
@@ -217,6 +218,21 @@ export function AppProvider({ children }: PropsWithChildren): React.ReactElement
       setIsRefreshing(false);
     }
   }, [hasCurrentConsent, isLocked, resetSession, token]);
+
+  const refresh = useCallback((): Promise<void> => {
+    if (refreshInFlight.current) return refreshInFlight.current;
+    const operation = performRefresh();
+    refreshInFlight.current = operation;
+    void operation.then(
+      () => {
+        if (refreshInFlight.current === operation) refreshInFlight.current = null;
+      },
+      () => {
+        if (refreshInFlight.current === operation) refreshInFlight.current = null;
+      },
+    );
+    return operation;
+  }, [performRefresh]);
 
   useEffect(() => {
     let active = true;
@@ -327,13 +343,21 @@ export function AppProvider({ children }: PropsWithChildren): React.ReactElement
     const unsubscribe = NetInfo.addEventListener((state) => {
       const connected = state.isConnected === true && state.isInternetReachable !== false;
       setIsOnline(connected);
-      if (connected && token && !isLocked) void refresh();
+      if (connected && token && !isLocked) {
+        void refresh().catch(() => {
+          setSyncIssue("Background refresh could not complete. Please try again.");
+        });
+      }
     });
     return unsubscribe;
   }, [isLocked, refresh, token]);
 
   useEffect(() => {
-    if (token && !isLocked) void refresh();
+    if (token && !isLocked) {
+      void refresh().catch(() => {
+        setSyncIssue("Background refresh could not complete. Please try again.");
+      });
+    }
   }, [isLocked, refresh, token]);
 
   const unlockApp = useCallback(async (): Promise<Result<void>> => {
@@ -383,6 +407,23 @@ export function AppProvider({ children }: PropsWithChildren): React.ReactElement
       }
       try {
         await enqueueCheckIn(payload);
+        if (!cycleSummary?.enabled) {
+          const checkInCycleRecord = {
+            observed_date: payload.observed_date,
+            period_status:
+              payload.period_status === "none" ? null : payload.period_status,
+          };
+          await cacheCycleDays([checkInCycleRecord]);
+          setCycleSummary((current) =>
+            current
+              ? applyCycleDay(
+                  current,
+                  checkInCycleRecord,
+                  localDateString(),
+                )
+              : current,
+          );
+        }
         setPendingCount(await queueCount());
         setLastCheckInDate(payload.observed_date);
         if (token && isOnline) await refresh();
@@ -394,7 +435,7 @@ export function AppProvider({ children }: PropsWithChildren): React.ReactElement
         };
       }
     },
-    [hasCurrentConsent, isOnline, refresh, token],
+    [cycleSummary?.enabled, hasCurrentConsent, isOnline, refresh, token],
   );
 
   const connectHealth = useCallback(async (): Promise<Result<void>> => {
@@ -547,13 +588,10 @@ export function AppProvider({ children }: PropsWithChildren): React.ReactElement
 
   const cycleContextForDate = useCallback(
     async (observedDate: string) => {
-      if (!cycleSummary?.enabled) {
-        return { period_status: "none" as const, cycle_day: null };
-      }
       const days = await cachedCycleDays();
       return checkInCycleContext(days, observedDate);
     },
-    [cycleSummary?.enabled],
+    [],
   );
 
   const deleteAccount = useCallback(async (): Promise<Result<void>> => {

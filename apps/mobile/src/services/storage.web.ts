@@ -10,6 +10,8 @@ import type {
   CycleDayRecord,
   CycleSyncRequest,
   WearableDailyRecord,
+  WearableIntervalRecord,
+  WearableIntervalSyncRequest,
   WearablePlatform,
   WearableSyncRequest,
 } from "@/types";
@@ -25,6 +27,8 @@ let consentVersion: string | null = null;
 let checkInQueue: ReadonlyArray<CheckInCreate> = [];
 let wearableQueue: ReadonlyArray<WearableSyncRequest> = [];
 let wearableDays: ReadonlyMap<string, WearableDailyRecord> = new Map();
+let wearableIntervalQueue: ReadonlyArray<WearableIntervalSyncRequest> = [];
+let wearableIntervals: ReadonlyMap<string, WearableIntervalRecord> = new Map();
 let wearableState: StoredWearableState | null = null;
 let cycleEnabled = false;
 let cycleQueue: ReadonlyArray<CycleSyncRequest> = [];
@@ -152,7 +156,78 @@ export async function markWearableSyncFailed(
 }
 
 export async function wearableQueueCount(): Promise<number> {
-  return wearableQueue.length;
+  return wearableQueue.length + wearableIntervalQueue.length;
+}
+
+function intervalKey(record: WearableIntervalRecord): string {
+  return `${record.observed_date}:${record.bucket_start_hour}`;
+}
+
+function hasWearableIntervalMetrics(record: WearableIntervalRecord): boolean {
+  return [
+    record.steps,
+    record.activity_minutes,
+    record.active_energy_kcal,
+    record.heart_rate_avg_bpm,
+    record.heart_rate_min_bpm,
+    record.heart_rate_max_bpm,
+    record.heart_rate_sample_count,
+    record.hrv_avg_ms,
+    record.hrv_sample_count,
+    record.respiratory_rate_avg_bpm,
+    record.respiratory_rate_sample_count,
+    record.oxygen_saturation_avg_pct,
+    record.oxygen_saturation_sample_count,
+  ].some((value) => value !== null);
+}
+
+export async function cacheWearableIntervals(
+  records: ReadonlyArray<WearableIntervalRecord>,
+): Promise<void> {
+  const updated = new Map(wearableIntervals);
+  for (const record of records) {
+    const key = intervalKey(record);
+    if (hasWearableIntervalMetrics(record)) updated.set(key, record);
+    else updated.delete(key);
+  }
+  wearableIntervals = updated;
+}
+
+export async function cachedWearableIntervals(
+  observedDate: string,
+): Promise<ReadonlyArray<WearableIntervalRecord>> {
+  return [...wearableIntervals.values()]
+    .filter((record) => record.observed_date === observedDate)
+    .sort((first, second) => first.bucket_start_hour - second.bucket_start_hour);
+}
+
+export async function enqueueWearableIntervalSync(
+  payload: WearableIntervalSyncRequest,
+): Promise<void> {
+  if (!wearableIntervalQueue.some((item) => item.sync_id === payload.sync_id)) {
+    wearableIntervalQueue = [...wearableIntervalQueue, payload];
+  }
+}
+
+export async function queuedWearableIntervalSyncs(): Promise<
+  ReadonlyArray<WearableIntervalSyncRequest>
+> {
+  return wearableIntervalQueue;
+}
+
+export async function markWearableIntervalSyncComplete(
+  syncId: string,
+): Promise<void> {
+  wearableIntervalQueue = wearableIntervalQueue.filter(
+    (item) => item.sync_id !== syncId,
+  );
+}
+
+export async function markWearableIntervalSyncFailed(
+  _syncId: string,
+  _message: string,
+): Promise<void> {
+  // Retry metadata is not retained in the volatile preview.
 }
 
 export async function setCycleTrackingEnabled(enabled: boolean): Promise<void> {
@@ -249,6 +324,8 @@ export async function getWearableState(): Promise<StoredWearableState | null> {
 export async function clearLocalWearableData(): Promise<void> {
   wearableQueue = [];
   wearableDays = new Map();
+  wearableIntervalQueue = [];
+  wearableIntervals = new Map();
   wearableState = null;
 }
 

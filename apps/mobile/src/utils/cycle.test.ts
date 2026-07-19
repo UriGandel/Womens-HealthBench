@@ -38,6 +38,11 @@ test("prefills check-in context and recomputes after an edit", () => {
         detail: "Previously calculated",
       },
     ],
+    prediction_status: "ready" as const,
+    prediction_confidence: "high" as const,
+    projected_through: "2026-08-31",
+    predicted_period_windows: [],
+    phase_days: [],
   };
   const updated = applyCycleDay(
     summary,

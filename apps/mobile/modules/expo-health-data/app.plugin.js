@@ -19,6 +19,7 @@ const READ_PERMISSIONS = [
   "android.permission.health.READ_STEPS",
   "android.permission.health.READ_EXERCISE",
   "android.permission.health.READ_ACTIVE_CALORIES_BURNED",
+  "android.permission.health.READ_HEART_RATE",
   "android.permission.health.READ_RESTING_HEART_RATE",
   "android.permission.health.READ_HEART_RATE_VARIABILITY",
   "android.permission.health.READ_RESPIRATORY_RATE",

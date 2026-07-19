@@ -1,4 +1,9 @@
-import { sendCheckIn, sendCycleDays, sendWearableDays } from "@/services/api";
+import {
+  sendCheckIn,
+  sendCycleDays,
+  sendWearableDays,
+  sendWearableIntervals,
+} from "@/services/api";
 import {
   markCycleSyncComplete,
   markCycleSyncFailed,
@@ -6,9 +11,13 @@ import {
   markCheckInSynced,
   markWearableSyncComplete,
   markWearableSyncFailed,
+  markWearableIntervalSyncComplete,
+  markWearableIntervalSyncFailed,
   queuedCheckIns,
   queuedCycleSyncs,
   queuedWearableSyncs,
+  queuedWearableIntervalSyncs,
+  wearableQueueCount,
 } from "@/services/storage";
 
 export interface SyncResult {
@@ -65,8 +74,10 @@ export function syncQueuedCheckIns(token: string): Promise<SyncResult> {
 
 async function runWearableSync(token: string): Promise<SyncResult> {
   const queued = await queuedWearableSyncs();
+  const queuedIntervals = await queuedWearableIntervalSyncs();
   let synced = 0;
   let rejected: string | undefined;
+  let haltIntervalSync = false;
 
   for (const batch of queued) {
     const result = await sendWearableDays(token, batch);
@@ -78,6 +89,7 @@ async function runWearableSync(token: string): Promise<SyncResult> {
     await markWearableSyncFailed(batch.sync_id, result.message);
     if (result.status === 428) {
       rejected = "Review the current participation consent before health data can sync.";
+      haltIntervalSync = true;
       break;
     }
     if (result.status === 409 || result.status === 422) {
@@ -85,10 +97,34 @@ async function runWearableSync(token: string): Promise<SyncResult> {
       rejected = `A health-data batch was rejected: ${result.message}`;
       continue;
     }
+    haltIntervalSync = true;
     break;
   }
 
-  const remaining = (await queuedWearableSyncs()).length;
+  if (!haltIntervalSync) {
+    for (const batch of queuedIntervals) {
+      const result = await sendWearableIntervals(token, batch);
+      if (result.ok) {
+        await markWearableIntervalSyncComplete(batch.sync_id);
+        synced += 1;
+        continue;
+      }
+      await markWearableIntervalSyncFailed(batch.sync_id, result.message);
+      if (result.status === 428) {
+        rejected =
+          "Review the current participation consent before health data can sync.";
+        break;
+      }
+      if (result.status === 409 || result.status === 422) {
+        await markWearableIntervalSyncComplete(batch.sync_id);
+        rejected = `A health-data interval batch was rejected: ${result.message}`;
+        continue;
+      }
+      break;
+    }
+  }
+
+  const remaining = await wearableQueueCount();
   return rejected ? { synced, remaining, rejected } : { synced, remaining };
 }
 

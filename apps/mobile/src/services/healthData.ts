@@ -3,23 +3,30 @@ import {
   getAvailability as getNativeAvailability,
   openHealthSettings as openNativeHealthSettings,
   readDailySummaries,
+  readIntervalSummaries,
   requestPermissions,
 } from "expo-health-data";
 
 import {
   cacheWearableDays,
+  cacheWearableIntervals,
   cachedWearableDay,
   enqueueWearableSync,
+  enqueueWearableIntervalSync,
   getWearableState,
   saveWearableState,
 } from "@/services/storage";
 import type {
   Result,
   WearableDailyRecord,
+  WearableIntervalRecord,
   WearablePlatform,
 } from "@/types";
 import { localDateString } from "@/utils/date";
-import { wearableDailyRecordSchema } from "@/validation";
+import {
+  wearableDailyRecordSchema,
+  wearableIntervalRecordSchema,
+} from "@/validation";
 
 const FOREGROUND_READ_INTERVAL_MS = 12 * 60 * 60 * 1000;
 const IMPORT_DAYS = 31;
@@ -36,6 +43,7 @@ export interface HealthAvailability {
 
 export interface HealthReadResult {
   readonly importedDays: number;
+  readonly importedIntervals: number;
   readonly metricsFound: ReadonlyArray<keyof WearableDailyRecord>;
   readonly platform: WearablePlatform;
   readonly skipped: boolean;
@@ -59,6 +67,37 @@ function recordsFromNative(value: unknown): Result<ReadonlyArray<WearableDailyRe
       return { ok: false, message: "The health store returned an invalid daily summary." };
     }
     records.push(parsed.data);
+  }
+  return { ok: true, value: records };
+}
+
+function intervalsFromNative(
+  value: unknown,
+): Result<ReadonlyArray<WearableIntervalRecord>> {
+  if (!Array.isArray(value) || value.length > IMPORT_DAYS * 4) {
+    return { ok: false, message: "The health store returned an invalid interval range." };
+  }
+  const records: WearableIntervalRecord[] = [];
+  const keys = new Set<string>();
+  for (const item of value) {
+    const parsed = wearableIntervalRecordSchema.safeParse(item);
+    if (!parsed.success) {
+      return {
+        ok: false,
+        message: "The health store returned an invalid interval summary.",
+      };
+    }
+    const key = `${parsed.data.observed_date}:${parsed.data.bucket_start_hour}`;
+    if (keys.has(key)) {
+      return {
+        ok: false,
+        message: "The health store returned a duplicate interval summary.",
+      };
+    }
+    keys.add(key);
+    const bucketEnd = new Date(`${parsed.data.observed_date}T00:00:00`);
+    bucketEnd.setHours(parsed.data.bucket_start_hour + 6, 0, 0, 0);
+    if (bucketEnd.getTime() <= Date.now()) records.push(parsed.data);
   }
   return { ok: true, value: records };
 }
@@ -101,24 +140,39 @@ async function readAndQueue(
   platform: WearablePlatform,
 ): Promise<Result<HealthReadResult>> {
   try {
-    const nativeRows: unknown = await readDailySummaries(
-      startDateForImport(),
-      localDateString(),
-    );
+    const startDate = startDateForImport();
+    const endDate = localDateString();
+    const [nativeRows, nativeIntervals]: [unknown, unknown] = await Promise.all([
+      readDailySummaries(startDate, endDate),
+      readIntervalSummaries(startDate, endDate),
+    ]);
     const parsed = recordsFromNative(nativeRows);
     if (!parsed.ok) return parsed;
+    const parsedIntervals = intervalsFromNative(nativeIntervals);
+    if (!parsedIntervals.ok) return parsedIntervals;
     if (parsed.value.some((record) => record.platform !== platform)) {
       return { ok: false, message: "The health store platform did not match this device." };
     }
+    if (parsedIntervals.value.some((record) => record.platform !== platform)) {
+      return { ok: false, message: "The health store platform did not match this device." };
+    }
     const now = new Date().toISOString();
-    await Promise.all([
-      cacheWearableDays(parsed.value),
-      enqueueWearableSync({
+    // Expo SQLite's standard async transactions share one connection and cannot
+    // overlap. Keep local health writes ordered so daily and interval cache
+    // transactions do not commit or roll back each other.
+    await cacheWearableDays(parsed.value);
+    await enqueueWearableSync({
+      sync_id: Crypto.randomUUID(),
+      records: parsed.value,
+    });
+    await cacheWearableIntervals(parsedIntervals.value);
+    if (parsedIntervals.value.length > 0) {
+      await enqueueWearableIntervalSync({
         sync_id: Crypto.randomUUID(),
-        records: parsed.value,
-      }),
-      saveWearableState(platform, now, currentTimeZone()),
-    ]);
+        records: parsedIntervals.value,
+      });
+    }
+    await saveWearableState(platform, now, currentTimeZone());
     const metricsFound = discoveredMetrics(parsed.value);
     return {
       ok: true,
@@ -126,6 +180,7 @@ async function readAndQueue(
         importedDays: parsed.value.filter((record) =>
           metricsFound.some((key) => record[key] !== null),
         ).length,
+        importedIntervals: parsedIntervals.value.length,
         metricsFound,
         platform,
         skipped: false,
@@ -182,6 +237,7 @@ export async function refreshHealthData(
       ok: true,
       value: {
         importedDays: 0,
+        importedIntervals: 0,
         metricsFound: [],
         platform: state.platform,
         skipped: true,

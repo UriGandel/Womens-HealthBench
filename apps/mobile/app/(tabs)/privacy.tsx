@@ -110,8 +110,8 @@ export default function PrivacyScreen(): React.ReactElement {
         <Text style={styles.cardLabel}>WATCH & HEALTH APP</Text>
         <Text style={styles.listText}>
           {account?.wearable_connected
-            ? `${account.wearable_day_count} days of daily health summaries are connected.`
-            : "Optionally connect Apple Health or Android Health Connect for daily watch summaries."}
+            ? `${account.wearable_day_count} days of daily and intraday health summaries are connected.`
+            : "Optionally connect Apple Health or Android Health Connect for daily and completed six-hour summaries."}
         </Text>
         <Button
           label={account?.wearable_connected ? "Manage health data" : "Connect health data"}
@@ -125,7 +125,7 @@ export default function PrivacyScreen(): React.ReactElement {
         <Text style={styles.listText}>
           {account?.cycle_tracking_enabled
             ? `${account.cycle_day_count} bleeding days are stored separately, with ${cyclePendingCount} edits on this device.`
-            : "Optional cycle tracking is currently disabled."}
+            : "Cycle context still comes from check-ins; separate history editing is disabled."}
         </Text>
         {account?.cycle_tracking_enabled ? (
           <>
@@ -144,7 +144,7 @@ export default function PrivacyScreen(): React.ReactElement {
           </>
         ) : (
           <Text style={styles.finePrint}>
-            Open the Cycle tab to review the privacy boundary and enable it.
+            Open the Cycle tab to view phase estimates or enable past-date editing.
           </Text>
         )}
       </View>
@@ -172,7 +172,7 @@ export default function PrivacyScreen(): React.ReactElement {
       <View style={styles.card}>
         <Text style={styles.cardLabel}>WHAT WE DO NOT COLLECT</Text>
         <Text style={styles.listText}>
-          Free text · precise location · contacts · advertising IDs · photos · browsing activity · fertility or ovulation estimates
+          Free text · precise location · contacts · advertising IDs · photos · browsing activity · raw sensor samples or timestamps
         </Text>
       </View>
 

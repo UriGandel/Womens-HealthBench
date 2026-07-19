@@ -7,6 +7,8 @@ import type {
   CycleDayRecord,
   CycleSyncRequest,
   WearableDailyRecord,
+  WearableIntervalRecord,
+  WearableIntervalSyncRequest,
   WearablePlatform,
   WearableSyncRequest,
 } from "@/types";
@@ -14,6 +16,7 @@ import {
   checkInSchema,
   cycleDayRecordSchema,
   wearableDailyRecordSchema,
+  wearableIntervalRecordSchema,
 } from "@/validation";
 
 const TOKEN_KEY = "whb.access-token";
@@ -35,6 +38,10 @@ interface WearableCacheRow {
   readonly payload: string;
 }
 
+interface WearableIntervalCacheRow {
+  readonly payload: string;
+}
+
 interface CycleQueueRow {
   readonly sync_id: string;
   readonly payload: string;
@@ -52,6 +59,15 @@ export interface StoredWearableState {
 }
 
 let databasePromise: Promise<SQLite.SQLiteDatabase> | undefined;
+let databaseWriteTail: Promise<void> = Promise.resolve();
+
+async function serializeDatabaseWrite(task: () => Promise<void>): Promise<void> {
+  const write = databaseWriteTail.then(task);
+  // A failed write must reject its own caller without poisoning the queue for
+  // every later storage operation.
+  databaseWriteTail = write.catch(() => undefined);
+  await write;
+}
 
 function bytesToHex(bytes: Uint8Array): string {
   return Array.from(bytes, (byte) => byte.toString(16).padStart(2, "0")).join("");
@@ -94,6 +110,20 @@ async function openEncryptedDatabase(): Promise<SQLite.SQLiteDatabase> {
       observed_date TEXT PRIMARY KEY NOT NULL,
       payload TEXT NOT NULL,
       updated_at TEXT NOT NULL
+    );
+    CREATE TABLE IF NOT EXISTS wearable_interval_sync_queue (
+      sync_id TEXT PRIMARY KEY NOT NULL,
+      payload TEXT NOT NULL,
+      created_at TEXT NOT NULL,
+      attempts INTEGER NOT NULL DEFAULT 0,
+      last_error TEXT
+    );
+    CREATE TABLE IF NOT EXISTS wearable_interval_cache (
+      observed_date TEXT NOT NULL,
+      bucket_start_hour INTEGER NOT NULL CHECK (bucket_start_hour IN (0, 6, 12, 18)),
+      payload TEXT NOT NULL,
+      updated_at TEXT NOT NULL,
+      PRIMARY KEY (observed_date, bucket_start_hour)
     );
     CREATE TABLE IF NOT EXISTS wearable_state (
       singleton INTEGER PRIMARY KEY NOT NULL CHECK (singleton = 1),
@@ -242,7 +272,7 @@ export async function cacheWearableDays(
   records: ReadonlyArray<WearableDailyRecord>,
 ): Promise<void> {
   const database = await getDatabase();
-  await database.withTransactionAsync(async () => {
+  await serializeDatabaseWrite(async () => {
     for (const record of records) {
       if (!hasWearableMetrics(record)) {
         await database.runAsync(
@@ -353,9 +383,150 @@ export async function markWearableSyncFailed(
 export async function wearableQueueCount(): Promise<number> {
   const database = await getDatabase();
   const row = await database.getFirstAsync<{ readonly count: number }>(
-    "SELECT COUNT(*) AS count FROM wearable_sync_queue",
+    `SELECT
+       (SELECT COUNT(*) FROM wearable_sync_queue) +
+       (SELECT COUNT(*) FROM wearable_interval_sync_queue) AS count`,
   );
   return row?.count ?? 0;
+}
+
+function hasWearableIntervalMetrics(record: WearableIntervalRecord): boolean {
+  return [
+    record.steps,
+    record.activity_minutes,
+    record.active_energy_kcal,
+    record.heart_rate_avg_bpm,
+    record.heart_rate_min_bpm,
+    record.heart_rate_max_bpm,
+    record.heart_rate_sample_count,
+    record.hrv_avg_ms,
+    record.hrv_sample_count,
+    record.respiratory_rate_avg_bpm,
+    record.respiratory_rate_sample_count,
+    record.oxygen_saturation_avg_pct,
+    record.oxygen_saturation_sample_count,
+  ].some((value) => value !== null);
+}
+
+export async function cacheWearableIntervals(
+  records: ReadonlyArray<WearableIntervalRecord>,
+): Promise<void> {
+  const database = await getDatabase();
+  await serializeDatabaseWrite(async () => {
+    for (const record of records) {
+      if (!hasWearableIntervalMetrics(record)) {
+        await database.runAsync(
+          `DELETE FROM wearable_interval_cache
+           WHERE observed_date = ? AND bucket_start_hour = ?`,
+          record.observed_date,
+          record.bucket_start_hour,
+        );
+        continue;
+      }
+      await database.runAsync(
+        `INSERT INTO wearable_interval_cache
+          (observed_date, bucket_start_hour, payload, updated_at)
+         VALUES (?, ?, ?, ?)
+         ON CONFLICT(observed_date, bucket_start_hour) DO UPDATE
+         SET payload = excluded.payload, updated_at = excluded.updated_at`,
+        record.observed_date,
+        record.bucket_start_hour,
+        JSON.stringify(record),
+        new Date().toISOString(),
+      );
+    }
+  });
+}
+
+export async function cachedWearableIntervals(
+  observedDate: string,
+): Promise<ReadonlyArray<WearableIntervalRecord>> {
+  const database = await getDatabase();
+  const rows = await database.getAllAsync<WearableIntervalCacheRow>(
+    `SELECT payload FROM wearable_interval_cache
+     WHERE observed_date = ? ORDER BY bucket_start_hour ASC`,
+    observedDate,
+  );
+  return rows.flatMap((row) => {
+    try {
+      const parsed = wearableIntervalRecordSchema.safeParse(
+        JSON.parse(row.payload) as unknown,
+      );
+      return parsed.success ? [parsed.data] : [];
+    } catch {
+      return [];
+    }
+  });
+}
+
+export async function enqueueWearableIntervalSync(
+  payload: WearableIntervalSyncRequest,
+): Promise<void> {
+  const database = await getDatabase();
+  await database.runAsync(
+    `INSERT OR IGNORE INTO wearable_interval_sync_queue (sync_id, payload, created_at)
+     VALUES (?, ?, ?)`,
+    payload.sync_id,
+    JSON.stringify(payload),
+    new Date().toISOString(),
+  );
+}
+
+export async function queuedWearableIntervalSyncs(): Promise<
+  ReadonlyArray<WearableIntervalSyncRequest>
+> {
+  const database = await getDatabase();
+  const rows = await database.getAllAsync<WearableQueueRow>(
+    `SELECT sync_id, payload FROM wearable_interval_sync_queue
+     ORDER BY created_at ASC`,
+  );
+  return rows.flatMap((row) => {
+    try {
+      const value = JSON.parse(row.payload) as unknown;
+      if (
+        typeof value !== "object" ||
+        value === null ||
+        !("sync_id" in value) ||
+        !("records" in value) ||
+        value.sync_id !== row.sync_id ||
+        !Array.isArray(value.records)
+      ) {
+        return [];
+      }
+      const records = value.records.flatMap((record) => {
+        const parsed = wearableIntervalRecordSchema.safeParse(record);
+        return parsed.success ? [parsed.data] : [];
+      });
+      if (records.length !== value.records.length || records.length < 1) return [];
+      return [{ sync_id: row.sync_id, records }];
+    } catch {
+      return [];
+    }
+  });
+}
+
+export async function markWearableIntervalSyncComplete(
+  syncId: string,
+): Promise<void> {
+  const database = await getDatabase();
+  await database.runAsync(
+    "DELETE FROM wearable_interval_sync_queue WHERE sync_id = ?",
+    syncId,
+  );
+}
+
+export async function markWearableIntervalSyncFailed(
+  syncId: string,
+  message: string,
+): Promise<void> {
+  const database = await getDatabase();
+  await database.runAsync(
+    `UPDATE wearable_interval_sync_queue
+     SET attempts = attempts + 1, last_error = ?
+     WHERE sync_id = ?`,
+    message.slice(0, 240),
+    syncId,
+  );
 }
 
 export async function setCycleTrackingEnabled(enabled: boolean): Promise<void> {
@@ -380,7 +551,7 @@ export async function cacheCycleDays(
   records: ReadonlyArray<CycleDayRecord>,
 ): Promise<void> {
   const database = await getDatabase();
-  await database.withTransactionAsync(async () => {
+  await serializeDatabaseWrite(async () => {
     for (const record of records) {
       if (record.period_status === null) {
         await database.runAsync(
@@ -406,7 +577,7 @@ export async function replaceCachedCycleDays(
   records: ReadonlyArray<CycleDayRecord>,
 ): Promise<void> {
   const database = await getDatabase();
-  await database.withTransactionAsync(async () => {
+  await serializeDatabaseWrite(async () => {
     await database.runAsync("DELETE FROM cycle_daily_cache");
     for (const record of records) {
       if (record.period_status === null) continue;
@@ -519,11 +690,13 @@ export async function cycleQueueCount(): Promise<number> {
 
 export async function clearLocalCycleData(): Promise<void> {
   const database = await getDatabase();
-  await database.execAsync(`
-    DELETE FROM cycle_sync_queue;
-    DELETE FROM cycle_daily_cache;
-    DELETE FROM cycle_state;
-  `);
+  await serializeDatabaseWrite(() =>
+    database.execAsync(`
+      DELETE FROM cycle_sync_queue;
+      DELETE FROM cycle_daily_cache;
+      DELETE FROM cycle_state;
+    `),
+  );
 }
 
 export async function saveWearableState(
@@ -554,22 +727,30 @@ export async function getWearableState(): Promise<StoredWearableState | null> {
 
 export async function clearLocalWearableData(): Promise<void> {
   const database = await getDatabase();
-  await database.execAsync(`
-    DELETE FROM wearable_sync_queue;
-    DELETE FROM wearable_daily_cache;
-    DELETE FROM wearable_state;
-  `);
+  await serializeDatabaseWrite(() =>
+    database.execAsync(`
+      DELETE FROM wearable_sync_queue;
+      DELETE FROM wearable_daily_cache;
+      DELETE FROM wearable_interval_sync_queue;
+      DELETE FROM wearable_interval_cache;
+      DELETE FROM wearable_state;
+    `),
+  );
 }
 
 export async function clearLocalHealthData(): Promise<void> {
   const database = await getDatabase();
-  await database.execAsync(`
-    DELETE FROM checkin_queue;
-    DELETE FROM wearable_sync_queue;
-    DELETE FROM wearable_daily_cache;
-    DELETE FROM wearable_state;
-    DELETE FROM cycle_sync_queue;
-    DELETE FROM cycle_daily_cache;
-    DELETE FROM cycle_state;
-  `);
+  await serializeDatabaseWrite(() =>
+    database.execAsync(`
+      DELETE FROM checkin_queue;
+      DELETE FROM wearable_sync_queue;
+      DELETE FROM wearable_daily_cache;
+      DELETE FROM wearable_interval_sync_queue;
+      DELETE FROM wearable_interval_cache;
+      DELETE FROM wearable_state;
+      DELETE FROM cycle_sync_queue;
+      DELETE FROM cycle_daily_cache;
+      DELETE FROM cycle_state;
+    `),
+  );
 }
