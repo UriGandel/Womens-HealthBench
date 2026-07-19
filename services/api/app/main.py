@@ -28,6 +28,8 @@ from app.schemas import (
     EnrollRequest,
     EnrollResponse,
     ForecastResponse,
+    InvitationCheckRequest,
+    InvitationCheckResponse,
     MessageResponse,
     ResearchConsentResponse,
     ResearchConsentUpdate,
@@ -76,6 +78,38 @@ def create_app() -> FastAPI:
     def health() -> dict[str, str]:
         return {"status": "ok"}
 
+    def is_reusable_demo_code(code: str) -> bool:
+        # The seeded demo invitation stays usable for repeated demo enrollments.
+        return settings.demo_mode and code == settings.demo_invite_code
+
+    @api.post(
+        "/v1/invitations/check",
+        response_model=InvitationCheckResponse,
+        tags=["participant"],
+    )
+    def check_invitation(
+        payload: InvitationCheckRequest,
+        session: Annotated[Session, Depends(get_session)],
+    ) -> InvitationCheckResponse:
+        invitation = session.scalar(
+            select(Invitation).where(
+                Invitation.code_hash == hash_secret(payload.invitation_code)
+            )
+        )
+        if invitation is None or (
+            invitation.used_at is not None
+            and not is_reusable_demo_code(payload.invitation_code)
+        ):
+            return InvitationCheckResponse(
+                valid=False, detail="Invitation is invalid or already used"
+            )
+        expires_at = invitation.expires_at
+        if expires_at.tzinfo is None:
+            expires_at = expires_at.replace(tzinfo=UTC)
+        if expires_at <= datetime.now(UTC):
+            return InvitationCheckResponse(valid=False, detail="Invitation has expired")
+        return InvitationCheckResponse(valid=True)
+
     @api.post(
         "/v1/enroll",
         response_model=EnrollResponse,
@@ -102,7 +136,10 @@ def create_app() -> FastAPI:
             .with_for_update()
         )
         now = datetime.now(UTC)
-        if invitation is None or invitation.used_at is not None:
+        if invitation is None or (
+            invitation.used_at is not None
+            and not is_reusable_demo_code(payload.invitation_code)
+        ):
             raise HTTPException(status_code=403, detail="Invitation is invalid or already used")
         expires_at = invitation.expires_at
         if expires_at.tzinfo is None:
@@ -124,7 +161,8 @@ def create_app() -> FastAPI:
                 action="enrolled",
             )
         )
-        invitation.used_at = now
+        if not is_reusable_demo_code(payload.invitation_code):
+            invitation.used_at = now
         seeded = bool(payload.seed_demo_history and settings.demo_mode)
         if seeded:
             seed_demo_checkins(session, account.id)

@@ -16,6 +16,7 @@ import { colors, radius, type } from "@/theme";
 export default function PrivacyScreen(): React.ReactElement {
   const {
     account,
+    forecast,
     pendingCount,
     isOnline,
     setResearchConsent,
@@ -140,6 +141,7 @@ export default function PrivacyScreen(): React.ReactElement {
         </Text>
         <Text style={styles.consentVersion}>
           CONSENT VERSION {account?.consent_version ?? "—"}
+          {forecast?.model_version ? ` · MODEL ${forecast.model_version}` : ""}
         </Text>
       </View>
 
@@ -177,7 +179,6 @@ const styles = StyleSheet.create({
     fontFamily: type.display,
     fontSize: 39,
     lineHeight: 44,
-    fontWeight: "600",
     letterSpacing: -0.8,
   },
   subtitle: {
@@ -215,7 +216,6 @@ const styles = StyleSheet.create({
     color: colors.ink,
     fontFamily: type.display,
     fontSize: 21,
-    fontWeight: "600",
   },
   detail: {
     color: colors.slate,
@@ -263,7 +263,6 @@ const styles = StyleSheet.create({
     color: colors.ink,
     fontFamily: type.display,
     fontSize: 28,
-    fontWeight: "600",
   },
   metricLabel: {
     color: colors.muted,
@@ -299,6 +298,5 @@ const styles = StyleSheet.create({
     color: colors.danger,
     fontFamily: type.display,
     fontSize: 21,
-    fontWeight: "600",
   },
 });

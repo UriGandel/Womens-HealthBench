@@ -28,23 +28,24 @@ const PERIOD_OPTIONS: ReadonlyArray<{
 ];
 
 interface Ratings {
-  readonly sleepQuality: Rating;
-  readonly stress: Rating;
-  readonly fatigue: Rating;
-  readonly brainFog: Rating;
-  readonly headache: Rating;
-  readonly pelvicPain: Rating;
-  readonly moodDisruption: Rating;
+  readonly sleepQuality: Rating | null;
+  readonly stress: Rating | null;
+  readonly fatigue: Rating | null;
+  readonly brainFog: Rating | null;
+  readonly headache: Rating | null;
+  readonly pelvicPain: Rating | null;
+  readonly moodDisruption: Rating | null;
 }
 
+// Ratings start unselected so saved values are observations, not defaults.
 const INITIAL_RATINGS: Ratings = {
-  sleepQuality: 2,
-  stress: 2,
-  fatigue: 2,
-  brainFog: 0,
-  headache: 0,
-  pelvicPain: 0,
-  moodDisruption: 0,
+  sleepQuality: null,
+  stress: null,
+  fatigue: null,
+  brainFog: null,
+  headache: null,
+  pelvicPain: null,
+  moodDisruption: null,
 };
 
 export default function CheckInScreen(): React.ReactElement {
@@ -52,7 +53,7 @@ export default function CheckInScreen(): React.ReactElement {
   const router = useRouter();
   const [periodStatus, setPeriodStatus] = useState<PeriodStatus>("none");
   const [cycleDay, setCycleDay] = useState("");
-  const [sleepHours, setSleepHours] = useState("7.5");
+  const [sleepHours, setSleepHours] = useState("");
   const [ratings, setRatings] = useState<Ratings>(INITIAL_RATINGS);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -62,10 +63,10 @@ export default function CheckInScreen(): React.ReactElement {
   };
 
   const submit = async (): Promise<void> => {
-    const parsedSleep = Number(sleepHours);
+    const parsedSleep = sleepHours.trim() ? Number(sleepHours) : null;
     const parsedCycle = cycleDay.trim() ? Number(cycleDay) : null;
-    if (!Number.isFinite(parsedSleep) || parsedSleep < 0 || parsedSleep > 24) {
-      setError("Sleep duration must be between 0 and 24 hours.");
+    if (parsedSleep === null || !Number.isFinite(parsedSleep) || parsedSleep < 0 || parsedSleep > 24) {
+      setError("Enter your hours of sleep (0–24).");
       return;
     }
     if (
@@ -73,6 +74,20 @@ export default function CheckInScreen(): React.ReactElement {
       (!Number.isInteger(parsedCycle) || parsedCycle < 1 || parsedCycle > 120)
     ) {
       setError("Cycle day must be a whole number from 1 to 120, or left blank.");
+      return;
+    }
+    const { sleepQuality, stress, fatigue, brainFog, headache, pelvicPain, moodDisruption } =
+      ratings;
+    if (
+      sleepQuality === null ||
+      stress === null ||
+      fatigue === null ||
+      brainFog === null ||
+      headache === null ||
+      pelvicPain === null ||
+      moodDisruption === null
+    ) {
+      setError("Rate every item — 0 is a valid answer for none.");
       return;
     }
 
@@ -84,13 +99,13 @@ export default function CheckInScreen(): React.ReactElement {
       period_status: periodStatus,
       cycle_day: parsedCycle,
       sleep_hours: parsedSleep,
-      sleep_quality: ratings.sleepQuality,
-      stress: ratings.stress,
-      fatigue: ratings.fatigue,
-      brain_fog: ratings.brainFog,
-      headache: ratings.headache,
-      pelvic_pain: ratings.pelvicPain,
-      mood_disruption: ratings.moodDisruption,
+      sleep_quality: sleepQuality,
+      stress,
+      fatigue,
+      brain_fog: brainFog,
+      headache,
+      pelvic_pain: pelvicPain,
+      mood_disruption: moodDisruption,
     });
     setLoading(false);
     if (!result.ok) {
@@ -167,6 +182,8 @@ export default function CheckInScreen(): React.ReactElement {
           accessibilityLabel="Hours of sleep"
           keyboardType="decimal-pad"
           maxLength={4}
+          placeholder="e.g. 7.5"
+          placeholderTextColor={colors.muted}
           value={sleepHours}
           onChangeText={setSleepHours}
           style={styles.input}
@@ -187,7 +204,6 @@ export default function CheckInScreen(): React.ReactElement {
 
       <View style={styles.card}>
         <Text style={styles.sectionTitle}>Symptoms</Text>
-        <Text style={styles.helper}>0 = none · 4 = severe disruption</Text>
         <RatingScale
           label="Fatigue"
           value={ratings.fatigue}
@@ -217,9 +233,6 @@ export default function CheckInScreen(): React.ReactElement {
 
       {error ? <Notice text={error} tone="warning" /> : null}
       <Button label="Save today’s check-in" onPress={() => void submit()} loading={loading} />
-      <Text style={styles.disclaimer}>
-        This structured check-in does not collect notes, location, contacts, or advertising identifiers.
-      </Text>
     </Screen>
   );
 }
@@ -241,7 +254,6 @@ const styles = StyleSheet.create({
     fontFamily: type.display,
     fontSize: 39,
     lineHeight: 44,
-    fontWeight: "600",
     letterSpacing: -0.8,
   },
   subtitle: {
@@ -262,7 +274,6 @@ const styles = StyleSheet.create({
     color: colors.ink,
     fontFamily: type.display,
     fontSize: 22,
-    fontWeight: "600",
   },
   fieldLabel: {
     color: colors.ink,
@@ -282,6 +293,8 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     backgroundColor: colors.paper,
     borderRadius: radius.medium,
+    borderWidth: 1,
+    borderColor: colors.line,
     padding: 4,
     gap: 4,
   },

@@ -10,6 +10,7 @@ export const colors = {
   mineral: "#286070",
   mineralDark: "#174653",
   mineralSoft: "#D8E8E8",
+  moss: "#4E9B5E",
   amber: "#EAAE48",
   amberSoft: "#F8EACB",
   plum: "#5E4967",
@@ -19,7 +20,7 @@ export const colors = {
 } as const;
 
 export const type = {
-  display: Platform.select({ ios: "Georgia", android: "serif", default: "serif" }),
+  display: "Lora_600SemiBold",
   body: Platform.select({ ios: "Avenir Next", android: "sans-serif", default: "sans-serif" }),
   mono: Platform.select({ ios: "Menlo", android: "monospace", default: "monospace" }),
 } as const;

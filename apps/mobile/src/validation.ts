@@ -23,6 +23,11 @@ export const checkInSchema = z.object({
   mood_disruption: ratingSchema,
 });
 
+export const invitationCheckResponseSchema = z.object({
+  valid: z.boolean(),
+  detail: z.string().nullable(),
+});
+
 export const enrollResponseSchema = z.object({
   access_token: z.string().min(1),
   consent_version: z.string().min(1),

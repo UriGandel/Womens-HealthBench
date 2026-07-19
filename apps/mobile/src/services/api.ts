@@ -4,6 +4,7 @@ import type {
   EnrollRequest,
   EnrollResponse,
   ForecastResponse,
+  InvitationCheckResponse,
   ResearchConsentResponse,
   Result,
 } from "@/types";
@@ -11,6 +12,7 @@ import {
   accountSummarySchema,
   enrollResponseSchema,
   forecastResponseSchema,
+  invitationCheckResponseSchema,
   messageResponseSchema,
   researchConsentResponseSchema,
 } from "@/validation";
@@ -66,6 +68,15 @@ async function request<T>(
       message: "No connection. Your entry is safe on this device and will sync later.",
     };
   }
+}
+
+export function checkInvitation(
+  invitationCode: string,
+): Promise<Result<InvitationCheckResponse>> {
+  return request<InvitationCheckResponse>("/v1/invitations/check", {
+    method: "POST",
+    body: JSON.stringify({ invitation_code: invitationCode }),
+  }, invitationCheckResponseSchema);
 }
 
 export function enroll(payload: EnrollRequest): Promise<Result<EnrollResponse>> {

@@ -63,6 +63,5 @@ const styles = StyleSheet.create({
     color: colors.ink,
     fontFamily: type.display,
     fontSize: 27,
-    fontWeight: "600",
   },
 });
