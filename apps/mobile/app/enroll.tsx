@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Platform, Pressable, StyleSheet, Text, View } from "react-native";
+import { Platform, StyleSheet, Text, View } from "react-native";
 
 import { Button } from "@/components/Button";
 import { Notice } from "@/components/Notice";
@@ -16,7 +16,8 @@ const DISCLAIMERS: ReadonlyArray<{
 }> = [
   {
     title: "Private alpha",
-    detail: "An experimental app for adults 18 or older.",
+    detail:
+      "An experimental app for adults only. By tapping “I agree” you confirm you are 18 or older.",
   },
   {
     title: "Not medical advice",
@@ -30,47 +31,13 @@ const DISCLAIMERS: ReadonlyArray<{
   },
 ];
 
-interface YesNoRowProps {
-  readonly title: string;
-  readonly detail: string;
-  readonly value: boolean;
-  readonly onChange: (value: boolean) => void;
-}
-
-function YesNoRow({ title, detail, value, onChange }: YesNoRowProps): React.ReactElement {
-  return (
-    <View style={styles.yesNoRow}>
-      <Text style={styles.toggleTitle}>{title}</Text>
-      <Text style={styles.toggleDetail}>{detail}</Text>
-      <View style={styles.segmented}>
-        {[false, true].map((option) => (
-          <Pressable
-            key={option ? "yes" : "no"}
-            accessibilityRole="button"
-            accessibilityState={{ selected: value === option }}
-            onPress={() => onChange(option)}
-            style={[styles.segment, value === option && styles.segmentSelected]}
-          >
-            <Text
-              style={[
-                styles.segmentLabel,
-                value === option && styles.segmentLabelSelected,
-              ]}
-            >
-              {option ? "Yes" : "No"}
-            </Text>
-          </Pressable>
-        ))}
-      </View>
-    </View>
-  );
-}
-
+// Step names are intentionally not rendered — the label shows only the count
+// (each step's heading already says what it is). STEPS entries are keys only.
 function StepMeter({ step }: { readonly step: number }): React.ReactElement {
   return (
     <View style={styles.stepMeter}>
       <Text style={styles.stepLabel}>
-        STEP {step + 1} OF {STEPS.length} · {(STEPS[step] ?? "").toUpperCase()}
+        STEP {step + 1} OF {STEPS.length}
       </Text>
       <View style={styles.stepTrack}>
         {STEPS.map((name, index) => (
@@ -91,7 +58,6 @@ function StepMeter({ step }: { readonly step: number }): React.ReactElement {
 export default function EnrollScreen(): React.ReactElement {
   const { enrollUser } = useApp();
   const [step, setStep] = useState(0);
-  const [research, setResearch] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -105,12 +71,10 @@ export default function EnrollScreen(): React.ReactElement {
     setStep(0);
   };
 
+  // Tapping "I agree" on each step is the explicit affirmative act for the
+  // statements shown on that step: 18+, data processing, then research use.
   const submit = async (): Promise<void> => {
     setError(null);
-    if (!research) {
-      setError("Research participation is required to join this private alpha.");
-      return;
-    }
     setLoading(true);
     const result = await enrollUser({
       adult_confirmed: true,
@@ -135,7 +99,7 @@ export default function EnrollScreen(): React.ReactElement {
           {step === 0 ? <Button label="I agree" onPress={goNext} /> : null}
           {step === 1 ? (
             <Button
-              label="Enter"
+              label="I agree"
               onPress={() => void submit()}
               loading={loading}
             />
@@ -185,20 +149,30 @@ export default function EnrollScreen(): React.ReactElement {
         </>
       ) : null}
 
+      {/*
+        Deliberate consent design — do not "restore" removed pieces:
+        - No Yes/No toggle here. Research participation is mandatory for this
+          alpha, so a toggle would be a fake choice; tapping "I agree" below is
+          the single explicit affirmative act. Declining = leaving enrollment
+          ("Back" or closing the app), and nothing is stored until enrollment.
+        - Plain white card (styles.researchCard), not an amber/warning tint:
+          this is a consent statement, not an alert.
+      */}
       {step === 1 ? (
         <View style={styles.researchCard}>
           <Text style={styles.required}>REQUIRED RESEARCH PARTICIPATION</Text>
-          <YesNoRow
-            title="Contribute pseudonymous records"
-            detail="Every accepted check-in and health-app summary you choose to import contributes to forecasting evaluation and the research dataset. Delete your account at any time to leave and remove all records."
-            value={research}
-            onChange={setResearch}
-          />
+          <Text style={styles.toggleTitle}>Contribute pseudonymous records</Text>
+          <Text style={styles.toggleDetail}>
+            Every accepted check-in and health-app summary you choose to import contributes to forecasting evaluation and the research dataset. Delete your account at any time to leave and remove all records.
+          </Text>
           <Text style={styles.finePrint}>
             Records are pseudonymous, not anonymous. Imported health data is retained as daily summaries until you disconnect it or delete your account. We never import raw samples, routes, location, device IDs, source-app IDs, or reproductive and clinical records.
           </Text>
+          <Text style={styles.finePrint}>
+            Research participation is required for this private alpha. If you would rather not contribute, go back or close the app — nothing is stored unless you agree.
+          </Text>
           <Text style={styles.consentVersion}>
-            By continuing, you accept consent version {CONSENT_VERSION}.
+            By tapping “I agree”, you accept consent version {CONSENT_VERSION}.
           </Text>
         </View>
       ) : null}
@@ -267,13 +241,15 @@ const styles = StyleSheet.create({
     fontSize: 13,
     lineHeight: 21,
   },
+  // Intentionally the same neutral white card as the disclaimers step — the
+  // amber tint was removed because consent copy is not a warning banner.
   researchCard: {
-    backgroundColor: colors.amberSoft,
+    backgroundColor: colors.white,
     borderRadius: radius.large,
     padding: 18,
     gap: 14,
     borderWidth: 1,
-    borderColor: "#E9D29F",
+    borderColor: colors.line,
   },
   required: {
     color: colors.plum,
@@ -294,43 +270,19 @@ const styles = StyleSheet.create({
     fontSize: 12,
     lineHeight: 18,
   },
-  yesNoRow: { gap: 8 },
-  segmented: {
-    flexDirection: "row",
-    backgroundColor: colors.paper,
-    borderRadius: radius.medium,
-    borderWidth: 1,
-    borderColor: colors.line,
-    padding: 4,
-    gap: 4,
-    marginTop: 4,
-  },
-  segment: {
-    flex: 1,
-    minHeight: 42,
-    borderRadius: 14,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  segmentSelected: { backgroundColor: colors.mineralDark },
-  segmentLabel: {
-    color: colors.slate,
-    fontFamily: type.body,
-    fontSize: 13,
-    fontWeight: "700",
-  },
-  segmentLabelSelected: { color: colors.white },
   finePrint: {
     color: colors.slate,
     fontFamily: type.body,
-    fontSize: 12,
-    lineHeight: 19,
+    fontSize: 13,
+    lineHeight: 20,
   },
+  // Matches finePrint so the consent-version line reads as part of the same
+  // block of copy, not as a smaller afterthought.
   consentVersion: {
-    color: colors.muted,
+    color: colors.slate,
     fontFamily: type.body,
-    fontSize: 11,
-    lineHeight: 17,
+    fontSize: 13,
+    lineHeight: 20,
   },
   footerButtons: { flexDirection: "row", gap: 10 },
   footerButton: { flex: 1 },
