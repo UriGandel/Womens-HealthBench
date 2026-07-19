@@ -8,10 +8,10 @@
 - **Output:** probability that tomorrow's mean normalized symptom burden is at
   least 0.5
 
-The production alpha currently exposes a transparent heuristic under a separate
-model version. This benchmark model must not silently replace it; promotion
-requires a versioned deployment, validation on permitted non-synthetic data,
-and an updated model card.
+The production alpha remains `tomorrow-gently-transparent-0.1.0`. Synthetic
+wearable results must not change it. Promotion requires incremental value on
+consented non-synthetic data, a new model version, a validation report, an
+updated model card, and a tested rollback path.
 
 ## Intended use
 
@@ -28,8 +28,10 @@ Synthetic data is suitable for testing reproducibility and leakage controls,
 not for estimating real-world accuracy or fairness.
 
 Documented features use only day-*t* or trailing information: current and
-3/7-day symptom burden, sleep duration/quality, stress, optional activity,
-period status, and cycle-day sine/cosine. Five 0–4 symptoms define the target:
+3/7-day symptom burden, self-reported sleep/quality and stress, period status,
+cycle-day sine/cosine, daily wearable summaries, wearable missingness,
+method-separated participant-normalized HRV, and causal temperature deviation.
+Five 0–4 symptoms define the target:
 fatigue, brain fog, headache/migraine, pelvic pain, and mood disruption.
 Missing numeric inputs are median-imputed within the training fold with missing
 indicators.
@@ -42,9 +44,10 @@ export only reviewed aggregate metrics.
 
 The predefined protocols are participant-grouped cross-validation and
 per-participant 70/30 rolling temporal holdouts. Comparators are previous-day
-burden, causal participant historical rate, and cycle-context logistic
-regression. Reports include AUROC, AUPRC, Brier score, calibration,
-missingness, and per-participant temporal results.
+burden, causal participant historical rate, cycle-context logistic regression,
+and an otherwise-identical gradient-boosted model without wearables. Reports
+include AUROC, AUPRC, Brier score, calibration, missingness, wearable ablation,
+and per-participant temporal results.
 
 The pipeline labels the gradient-boosted result predictive only if it beats the
 strongest predefined baseline on AUROC or Brier score and its calibration error

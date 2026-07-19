@@ -1,15 +1,18 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://womens-healthbench.example/schemas/research-checkin.schema.json",
-  "title": "Pseudonymous longitudinal symptom check-in",
-  "description": "Public interchange schema. It intentionally excludes direct identifiers, absolute dates, free text, device identifiers, location, and network identifiers.",
+  "title": "Pseudonymous longitudinal symptom and wearable observation",
+  "description": "Public interchange schema. It intentionally excludes direct identifiers, absolute dates, raw sensor samples, device/source identifiers, location, and network identifiers.",
   "type": "object",
   "additionalProperties": false,
   "required": [
     "schema_version",
     "participant_id",
     "day_in_study",
+    "has_self_report",
+    "has_wearable",
     "period_status",
+    "cycle_day",
     "sleep_hours",
     "sleep_quality",
     "stress",
@@ -18,26 +21,43 @@
     "headache",
     "pelvic_pain",
     "mood_disruption",
+    "wearable_sleep_minutes",
+    "steps",
+    "activity_minutes",
+    "active_energy_kcal",
+    "resting_heart_rate_bpm",
+    "hrv_ms",
+    "hrv_method",
+    "respiratory_rate_bpm",
+    "oxygen_saturation_pct",
+    "peripheral_temperature_delta_c",
     "source"
   ],
   "properties": {
     "schema_version": {
-      "const": "1.0.0"
+      "const": "2.0.0"
     },
     "participant_id": {
       "type": "string",
       "minLength": 8,
       "maxLength": 64,
       "pattern": "^[A-Za-z0-9_-]+$",
-      "description": "Random research identifier or an explicitly synthetic identifier; never an account ID."
+      "description": "Random research identifier or explicitly synthetic identifier; never an account ID."
     },
     "day_in_study": {
       "type": "integer",
       "minimum": 0,
       "description": "Relative day offset; never an absolute calendar date."
     },
+    "has_self_report": {
+      "type": "boolean"
+    },
+    "has_wearable": {
+      "type": "boolean"
+    },
     "period_status": {
-      "enum": ["none", "spotting", "flow"]
+      "type": ["string", "null"],
+      "enum": ["none", "spotting", "flow", null]
     },
     "cycle_day": {
       "type": ["integer", "null"],
@@ -53,33 +73,135 @@
       "$ref": "#/$defs/nullableRating"
     },
     "stress": {
-      "$ref": "#/$defs/rating"
+      "$ref": "#/$defs/nullableRating"
+    },
+    "fatigue": {
+      "$ref": "#/$defs/nullableRating"
+    },
+    "brain_fog": {
+      "$ref": "#/$defs/nullableRating"
+    },
+    "headache": {
+      "$ref": "#/$defs/nullableRating"
+    },
+    "pelvic_pain": {
+      "$ref": "#/$defs/nullableRating"
+    },
+    "mood_disruption": {
+      "$ref": "#/$defs/nullableRating"
+    },
+    "wearable_sleep_minutes": {
+      "type": ["integer", "null"],
+      "minimum": 0,
+      "maximum": 1440
+    },
+    "steps": {
+      "type": ["integer", "null"],
+      "minimum": 0,
+      "maximum": 500000
     },
     "activity_minutes": {
       "type": ["integer", "null"],
       "minimum": 0,
-      "maximum": 1440,
-      "description": "Optional benchmark input; not collected by the v1 mobile check-in."
+      "maximum": 1440
     },
-    "fatigue": {
-      "$ref": "#/$defs/rating"
+    "active_energy_kcal": {
+      "type": ["number", "null"],
+      "minimum": 0,
+      "maximum": 50000
     },
-    "brain_fog": {
-      "$ref": "#/$defs/rating"
+    "resting_heart_rate_bpm": {
+      "type": ["number", "null"],
+      "minimum": 20,
+      "maximum": 300
     },
-    "headache": {
-      "$ref": "#/$defs/rating"
+    "hrv_ms": {
+      "type": ["number", "null"],
+      "minimum": 0,
+      "maximum": 1000
     },
-    "pelvic_pain": {
-      "$ref": "#/$defs/rating"
+    "hrv_method": {
+      "type": ["string", "null"],
+      "enum": ["sdnn", "rmssd", null]
     },
-    "mood_disruption": {
-      "$ref": "#/$defs/rating"
+    "respiratory_rate_bpm": {
+      "type": ["number", "null"],
+      "minimum": 1,
+      "maximum": 100
+    },
+    "oxygen_saturation_pct": {
+      "type": ["number", "null"],
+      "minimum": 0,
+      "maximum": 100
+    },
+    "peripheral_temperature_delta_c": {
+      "type": ["number", "null"],
+      "minimum": -20,
+      "maximum": 20
     },
     "source": {
       "enum": ["synthetic", "private-alpha", "mcphases-local"]
     }
   },
+  "allOf": [
+    {
+      "anyOf": [
+        { "properties": { "has_self_report": { "const": true } } },
+        { "properties": { "has_wearable": { "const": true } } }
+      ]
+    },
+    {
+      "if": {
+        "properties": { "has_self_report": { "const": true } },
+        "required": ["has_self_report"]
+      },
+      "then": {
+        "properties": {
+          "period_status": { "enum": ["none", "spotting", "flow"] },
+          "sleep_hours": { "type": "number" },
+          "sleep_quality": { "$ref": "#/$defs/rating" },
+          "stress": { "$ref": "#/$defs/rating" },
+          "fatigue": { "$ref": "#/$defs/rating" },
+          "brain_fog": { "$ref": "#/$defs/rating" },
+          "headache": { "$ref": "#/$defs/rating" },
+          "pelvic_pain": { "$ref": "#/$defs/rating" },
+          "mood_disruption": { "$ref": "#/$defs/rating" }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": { "has_wearable": { "const": false } },
+        "required": ["has_wearable"]
+      },
+      "then": {
+        "properties": {
+          "wearable_sleep_minutes": { "type": "null" },
+          "steps": { "type": "null" },
+          "activity_minutes": { "type": "null" },
+          "active_energy_kcal": { "type": "null" },
+          "resting_heart_rate_bpm": { "type": "null" },
+          "hrv_ms": { "type": "null" },
+          "hrv_method": { "type": "null" },
+          "respiratory_rate_bpm": { "type": "null" },
+          "oxygen_saturation_pct": { "type": "null" },
+          "peripheral_temperature_delta_c": { "type": "null" }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": { "hrv_ms": { "type": "number" } },
+        "required": ["hrv_ms"]
+      },
+      "then": {
+        "properties": { "hrv_method": { "enum": ["sdnn", "rmssd"] } }
+      },
+      "else": {
+        "properties": { "hrv_method": { "type": "null" } }
+      }
+    }
+  ],
   "$defs": {
     "rating": {
       "type": "integer",

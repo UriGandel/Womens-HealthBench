@@ -8,9 +8,7 @@ class Settings(BaseSettings):
 
     app_name: str = "Tomorrow, Gently API"
     database_url: str = "sqlite:///./healthbench.db"
-    demo_invite_code: str = "ALPHA-2026"
-    demo_mode: bool = True
-    consent_version: str = "2026-07-01"
+    consent_version: str = "2026-07-19-health-v1"
     admin_export_key: str | None = None
     allowed_origins: str = "*"
 

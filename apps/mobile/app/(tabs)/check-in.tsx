@@ -1,6 +1,6 @@
 import * as Crypto from "expo-crypto";
 import { useRouter } from "expo-router";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   Pressable,
   StyleSheet,
@@ -48,14 +48,35 @@ const INITIAL_RATINGS: Ratings = {
 };
 
 export default function CheckInScreen(): React.ReactElement {
-  const { submitCheckIn, isOnline, pendingCount, syncIssue } = useApp();
+  const {
+    submitCheckIn,
+    isOnline,
+    pendingCount,
+    syncIssue,
+    wearableSleepHours,
+  } = useApp();
   const router = useRouter();
   const [periodStatus, setPeriodStatus] = useState<PeriodStatus>("none");
   const [cycleDay, setCycleDay] = useState("");
   const [sleepHours, setSleepHours] = useState("7.5");
+  const [sleepPrefilled, setSleepPrefilled] = useState(false);
   const [ratings, setRatings] = useState<Ratings>(INITIAL_RATINGS);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const sleepTouched = useRef(false);
+
+  useEffect(() => {
+    let active = true;
+    void wearableSleepHours(localDateString()).then((hours) => {
+      if (active && hours !== null && !sleepTouched.current) {
+        setSleepHours(String(hours));
+        setSleepPrefilled(true);
+      }
+    });
+    return () => {
+      active = false;
+    };
+  }, [wearableSleepHours]);
 
   const updateRating = (key: keyof Ratings, value: Rating): void => {
     setRatings((current) => ({ ...current, [key]: value }));
@@ -168,9 +189,18 @@ export default function CheckInScreen(): React.ReactElement {
           keyboardType="decimal-pad"
           maxLength={4}
           value={sleepHours}
-          onChangeText={setSleepHours}
+          onChangeText={(value) => {
+            sleepTouched.current = true;
+            setSleepPrefilled(false);
+            setSleepHours(value);
+          }}
           style={styles.input}
         />
+        {sleepPrefilled ? (
+          <Text style={styles.helper}>
+            PREFILLED FROM YOUR CONNECTED HEALTH APP · EDIT IF NEEDED
+          </Text>
+        ) : null}
         <RatingScale
           label="Sleep quality"
           value={ratings.sleepQuality}

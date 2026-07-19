@@ -1,0 +1,20 @@
+plugins {
+  id 'com.android.library'
+  id 'expo-module-gradle-plugin'
+}
+
+group = 'org.womenshealthbench'
+version = '0.1.0'
+
+android {
+  namespace "org.womenshealthbench.healthdata"
+  defaultConfig {
+    minSdk 26
+    versionCode 1
+    versionName "0.1.0"
+  }
+}
+
+dependencies {
+  implementation "androidx.health.connect:connect-client:1.1.0"
+}

@@ -3,6 +3,11 @@
     "name": "Tomorrow, Gently",
     "slug": "tomorrow-gently",
     "version": "0.1.0",
+    "platforms": [
+      "ios",
+      "android",
+      "web"
+    ],
     "orientation": "portrait",
     "scheme": "tomorrowgently",
     "userInterfaceStyle": "light",
@@ -24,17 +29,24 @@
       "expo-router",
       "expo-secure-store",
       [
+        "expo-local-authentication",
+        {
+          "faceIDPermission": "Allow Tomorrow, Gently to unlock your private health check-ins."
+        }
+      ],
+      [
         "expo-sqlite",
         {
           "useSQLCipher": true
         }
-      ]
+      ],
+      "expo-health-data"
     ],
     "experiments": {
       "typedRoutes": true
     },
     "extra": {
-      "consentVersion": "2026-07-01"
+      "consentVersion": "2026-07-19-health-v1"
     }
   }
 }

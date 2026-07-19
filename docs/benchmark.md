@@ -2,8 +2,10 @@
 
 ## Question and target
 
-The benchmark asks: using information available after a participant's day-*t*
-check-in, can a model estimate whether day *t+1* will have high symptom burden?
+The benchmark asks: using information available through participant day *t*,
+can a model estimate whether a manual self-report on day *t+1* will have high
+symptom burden? A wearable-only day can be a feature day, but it never supplies
+the symptom target.
 Each of fatigue, brain fog, headache/migraine, pelvic pain, and mood disruption
 is divided by four. Their mean is the normalized burden. The binary target is
 one when next-day burden is at least `0.5`.
@@ -14,8 +16,10 @@ claims about real people.
 
 ## Inputs and leakage boundary
 
-Features contain current and 3/7-day trailing symptom burden, sleep, stress,
-optional activity, period status, and cyclical encoding of cycle day. Every
+Features contain current and 3/7-day trailing symptom burden, manual sleep and
+stress, period status, cyclical encoding of cycle day, wearable daily metrics,
+missingness indicators, participant-normalized HRV separated by SDNN/RMSSD,
+and trailing causal temperature deviation. Every
 feature row retains `feature_day` and `target_day`; construction fails unless
 `feature_day < target_day`. No future interpolation or participant-wide
 normalization is used. Numeric missing values are imputed using training data
@@ -23,18 +27,19 @@ inside each model pipeline.
 
 The public record schema is
 [`schemas/research-checkin.schema.json`](../schemas/research-checkin.schema.json).
-The mobile alpha does not collect activity; that nullable field exists only to
-support permitted local normalization of research datasets that contain it.
+Synthetic wearable signals exist only to exercise pipeline, missingness, and
+leakage protections. Their results are labeled simulation evidence.
 
 ## Predefined comparisons
 
-The same four approaches are compared:
+Five approaches are compared:
 
 1. Previous-day normalized burden.
 2. Causal participant historical rate, computed only from already-observed
    outcomes and smoothed toward the training-fold rate.
 3. Logistic regression using cycle context only.
-4. Histogram gradient boosting using all documented lag/current features.
+4. Histogram gradient boosting without wearable features.
+5. The same histogram gradient boosting pipeline with wearable features.
 
 Two protocols answer different questions:
 
@@ -48,10 +53,10 @@ Reports include AUROC, AUPRC, Brier score, 10-bin calibration and expected
 calibration error, feature missingness, and per-participant temporal results.
 AUROC/AUPRC are `null` when a slice contains only one target class.
 
-The report marks the gradient-boosted result as predictive only when it beats
-the strongest predefined baseline on discrimination or Brier score and its
-calibration error is no worse than the best baseline. This conservative
-mechanical flag does not establish clinical utility.
+The wearable ablation qualifies only when the wearable model improves AUROC or
+Brier score over the otherwise-identical non-wearable model and calibration is
+no worse. `wearable_promotion_eligible` is always false for synthetic input.
+This mechanical flag does not establish clinical utility.
 
 ## Reproduce
 

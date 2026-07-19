@@ -26,16 +26,6 @@ def uuid_string() -> str:
     return str(uuid4())
 
 
-class Invitation(Base):
-    __tablename__ = "identity_invitations"
-
-    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uuid_string)
-    code_hash: Mapped[str] = mapped_column(String(64), unique=True, index=True)
-    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
-    used_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
-
-
 class Account(Base):
     __tablename__ = "identity_accounts"
 
@@ -52,6 +42,15 @@ class Account(Base):
     checkins: Mapped[list[CheckIn]] = relationship(
         back_populates="account", cascade="all, delete-orphan"
     )
+    wearable_connection: Mapped[WearableConnection | None] = relationship(
+        back_populates="account", cascade="all, delete-orphan", uselist=False
+    )
+    wearable_days: Mapped[list[WearableDailySummary]] = relationship(
+        back_populates="account", cascade="all, delete-orphan"
+    )
+    wearable_sync_receipts: Mapped[list[WearableSyncReceipt]] = relationship(
+        back_populates="account", cascade="all, delete-orphan"
+    )
 
 
 class ParticipantLink(Base):
@@ -65,6 +64,9 @@ class ParticipantLink(Base):
 
     account: Mapped[Account] = relationship(back_populates="participant_link")
     research_events: Mapped[list[ResearchEvent]] = relationship(
+        back_populates="participant_link", cascade="all, delete-orphan"
+    )
+    research_wearable_days: Mapped[list[ResearchWearableDay]] = relationship(
         back_populates="participant_link", cascade="all, delete-orphan"
     )
 
@@ -108,10 +110,70 @@ class CheckIn(Base):
     headache: Mapped[int] = mapped_column(Integer)
     pelvic_pain: Mapped[int] = mapped_column(Integer)
     mood_disruption: Mapped[int] = mapped_column(Integer)
-    is_synthetic: Mapped[bool] = mapped_column(Boolean, default=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
 
     account: Mapped[Account] = relationship(back_populates="checkins")
+
+
+class WearableConnection(Base):
+    __tablename__ = "health_wearable_connections"
+
+    account_id: Mapped[str] = mapped_column(
+        ForeignKey("identity_accounts.id", ondelete="CASCADE"), primary_key=True
+    )
+    platform: Mapped[str] = mapped_column(String(32))
+    connected_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
+    last_synced_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
+
+    account: Mapped[Account] = relationship(back_populates="wearable_connection")
+
+
+class WearableDailySummary(Base):
+    __tablename__ = "health_wearable_daily_summaries"
+    __table_args__ = (
+        UniqueConstraint("account_id", "observed_date", name="uq_wearable_account_day"),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uuid_string)
+    account_id: Mapped[str] = mapped_column(
+        ForeignKey("identity_accounts.id", ondelete="CASCADE"), index=True
+    )
+    observed_date: Mapped[date] = mapped_column(Date)
+    platform: Mapped[str] = mapped_column(String(32))
+    sleep_minutes: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    steps: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    activity_minutes: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    active_energy_kcal: Mapped[float | None] = mapped_column(Float, nullable=True)
+    resting_heart_rate_bpm: Mapped[float | None] = mapped_column(Float, nullable=True)
+    hrv_ms: Mapped[float | None] = mapped_column(Float, nullable=True)
+    hrv_method: Mapped[str | None] = mapped_column(String(16), nullable=True)
+    respiratory_rate_bpm: Mapped[float | None] = mapped_column(Float, nullable=True)
+    oxygen_saturation_pct: Mapped[float | None] = mapped_column(Float, nullable=True)
+    peripheral_temperature_delta_c: Mapped[float | None] = mapped_column(Float, nullable=True)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utc_now, onupdate=utc_now
+    )
+
+    account: Mapped[Account] = relationship(back_populates="wearable_days")
+
+
+class WearableSyncReceipt(Base):
+    __tablename__ = "health_wearable_sync_receipts"
+    __table_args__ = (
+        UniqueConstraint("account_id", "sync_id", name="uq_wearable_account_sync"),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uuid_string)
+    account_id: Mapped[str] = mapped_column(
+        ForeignKey("identity_accounts.id", ondelete="CASCADE"), index=True
+    )
+    sync_id: Mapped[str] = mapped_column(String(64))
+    payload_hash: Mapped[str] = mapped_column(String(64))
+    accepted_days: Mapped[int] = mapped_column(Integer)
+    deleted_days: Mapped[int] = mapped_column(Integer)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
+
+    account: Mapped[Account] = relationship(back_populates="wearable_sync_receipts")
 
 
 class ResearchEvent(Base):
@@ -143,3 +205,36 @@ class ResearchEvent(Base):
     mood_disruption: Mapped[int] = mapped_column(Integer)
 
     participant_link: Mapped[ParticipantLink] = relationship(back_populates="research_events")
+
+
+class ResearchWearableDay(Base):
+    __tablename__ = "research_wearable_daily_events"
+    __table_args__ = (
+        UniqueConstraint("research_id", "day_in_study", name="uq_research_wearable_day"),
+        UniqueConstraint(
+            "research_id",
+            "source_wearable_day_id",
+            name="uq_research_source_wearable_day",
+        ),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uuid_string)
+    research_id: Mapped[str] = mapped_column(
+        ForeignKey("identity_participant_links.research_id", ondelete="CASCADE"), index=True
+    )
+    source_wearable_day_id: Mapped[str] = mapped_column(String(36))
+    day_in_study: Mapped[int] = mapped_column(Integer)
+    sleep_minutes: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    steps: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    activity_minutes: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    active_energy_kcal: Mapped[float | None] = mapped_column(Float, nullable=True)
+    resting_heart_rate_bpm: Mapped[float | None] = mapped_column(Float, nullable=True)
+    hrv_ms: Mapped[float | None] = mapped_column(Float, nullable=True)
+    hrv_method: Mapped[str | None] = mapped_column(String(16), nullable=True)
+    respiratory_rate_bpm: Mapped[float | None] = mapped_column(Float, nullable=True)
+    oxygen_saturation_pct: Mapped[float | None] = mapped_column(Float, nullable=True)
+    peripheral_temperature_delta_c: Mapped[float | None] = mapped_column(Float, nullable=True)
+
+    participant_link: Mapped[ParticipantLink] = relationship(
+        back_populates="research_wearable_days"
+    )

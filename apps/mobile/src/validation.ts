@@ -26,8 +26,12 @@ export const checkInSchema = z.object({
 export const enrollResponseSchema = z.object({
   access_token: z.string().min(1),
   consent_version: z.string().min(1),
-  research_opt_in: z.boolean(),
-  demo_history_seeded: z.boolean(),
+});
+
+export const consentResponseSchema = z.object({
+  consent_current: z.boolean(),
+  consent_version: z.string().min(1),
+  effective_at: z.string(),
 });
 
 const forecastFactorSchema = z.object({
@@ -49,16 +53,45 @@ export const forecastResponseSchema = z.object({
 });
 
 export const accountSummarySchema = z.object({
-  research_opt_in: z.boolean(),
+  consent_current: z.boolean(),
   consent_version: z.string(),
   checkin_count: z.number().int().nonnegative(),
   research_record_count: z.number().int().nonnegative(),
+  wearable_connected: z.boolean(),
+  wearable_platform: z.enum(["apple_health", "health_connect"]).nullable(),
+  wearable_day_count: z.number().int().nonnegative(),
+  wearable_last_synced_at: z.string().nullable(),
 });
 
-export const researchConsentResponseSchema = z.object({
-  research_opt_in: z.boolean(),
-  effective_at: z.string(),
-  contributed_records: z.number().int().nonnegative(),
+export const wearableDailyRecordSchema = z
+  .object({
+    observed_date: z.iso.date(),
+    platform: z.enum(["apple_health", "health_connect"]),
+    sleep_minutes: z.number().int().min(0).max(1440).nullable(),
+    steps: z.number().int().min(0).max(500_000).nullable(),
+    activity_minutes: z.number().int().min(0).max(1440).nullable(),
+    active_energy_kcal: z.number().min(0).max(50_000).nullable(),
+    resting_heart_rate_bpm: z.number().min(20).max(300).nullable(),
+    hrv_ms: z.number().min(0).max(1000).nullable(),
+    hrv_method: z.enum(["sdnn", "rmssd"]).nullable(),
+    respiratory_rate_bpm: z.number().min(1).max(100).nullable(),
+    oxygen_saturation_pct: z.number().min(0).max(100).nullable(),
+    peripheral_temperature_delta_c: z.number().min(-20).max(20).nullable(),
+  })
+  .refine((value) => (value.hrv_ms === null) === (value.hrv_method === null), {
+    message: "HRV value and method must be present together.",
+  });
+
+export const wearableSyncResponseSchema = z.object({
+  accepted_days: z.number().int().nonnegative(),
+  deleted_days: z.number().int().nonnegative(),
+  duplicate: z.boolean(),
+  last_synced_at: z.string(),
+});
+
+export const wearableDeleteResponseSchema = z.object({
+  deleted_days: z.number().int().nonnegative(),
+  message: z.string(),
 });
 
 export const messageResponseSchema = z.object({

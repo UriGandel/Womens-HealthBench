@@ -8,19 +8,31 @@ PeriodStatus = Literal["none", "spotting", "flow"]
 
 
 class EnrollRequest(BaseModel):
-    invitation_code: str = Field(min_length=4, max_length=64)
+    model_config = ConfigDict(extra="forbid")
+
     adult_confirmed: bool
     operational_consent: bool
-    research_opt_in: bool = False
+    research_consent: bool
     consent_version: str
-    seed_demo_history: bool = False
 
 
 class EnrollResponse(BaseModel):
     access_token: str
     consent_version: str
-    research_opt_in: bool
-    demo_history_seeded: bool
+
+
+class ConsentUpdate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    operational_consent: bool
+    research_consent: bool
+    consent_version: str
+
+
+class ConsentResponse(BaseModel):
+    consent_current: bool
+    consent_version: str
+    effective_at: datetime
 
 
 class CheckInCreate(BaseModel):
@@ -70,27 +82,74 @@ class ForecastResponse(BaseModel):
     disclaimer: str
 
 
-class ResearchConsentUpdate(BaseModel):
-    research_opt_in: bool
-    consent_version: str
-    contribute_existing: bool = False
-
-
-class ResearchConsentResponse(BaseModel):
-    research_opt_in: bool
-    effective_at: datetime
-    contributed_records: int
-
-
 class AccountSummary(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
-    research_opt_in: bool
+    consent_current: bool
     consent_version: str
     checkin_count: int
     research_record_count: int
+    wearable_connected: bool
+    wearable_platform: Literal["apple_health", "health_connect"] | None = None
+    wearable_day_count: int
+    wearable_last_synced_at: datetime | None = None
+
+
+class WearableDailyRecord(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    observed_date: date
+    platform: Literal["apple_health", "health_connect"]
+    sleep_minutes: int | None = Field(default=None, ge=0, le=1440)
+    steps: int | None = Field(default=None, ge=0, le=500_000)
+    activity_minutes: int | None = Field(default=None, ge=0, le=1440)
+    active_energy_kcal: float | None = Field(default=None, ge=0, le=50_000)
+    resting_heart_rate_bpm: float | None = Field(default=None, ge=20, le=300)
+    hrv_ms: float | None = Field(default=None, ge=0, le=1000)
+    hrv_method: Literal["sdnn", "rmssd"] | None = None
+    respiratory_rate_bpm: float | None = Field(default=None, ge=1, le=100)
+    oxygen_saturation_pct: float | None = Field(default=None, ge=0, le=100)
+    peripheral_temperature_delta_c: float | None = Field(default=None, ge=-20, le=20)
+
+    @model_validator(mode="after")
+    def hrv_value_and_method_are_paired(self) -> "WearableDailyRecord":
+        if (self.hrv_ms is None) != (self.hrv_method is None):
+            raise ValueError("hrv_ms and hrv_method must be provided together")
+        return self
+
+    def has_metrics(self) -> bool:
+        return any(
+            value is not None
+            for field, value in self.model_dump().items()
+            if field not in {"observed_date", "platform", "hrv_method"}
+        )
+
+
+class WearableSyncRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    sync_id: str = Field(min_length=8, max_length=64)
+    records: list[WearableDailyRecord] = Field(min_length=1, max_length=31)
+
+    @model_validator(mode="after")
+    def dates_are_unique(self) -> "WearableSyncRequest":
+        dates = [record.observed_date for record in self.records]
+        if len(dates) != len(set(dates)):
+            raise ValueError("wearable records must contain unique observed dates")
+        return self
+
+
+class WearableSyncResponse(BaseModel):
+    accepted_days: int
+    deleted_days: int
+    duplicate: bool
+    last_synced_at: datetime
+
+
+class WearableDeleteResponse(BaseModel):
+    deleted_days: int
+    message: str
 
 
 class MessageResponse(BaseModel):
     message: str
-

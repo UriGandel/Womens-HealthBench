@@ -19,21 +19,38 @@ from sklearn.metrics import average_precision_score, brier_score_loss, roc_auc_s
 from sklearn.model_selection import GroupKFold
 from sklearn.pipeline import Pipeline
 
-from .features import FEATURE_COLUMNS, build_features
+from .features import CORE_FEATURE_COLUMNS, FEATURE_COLUMNS, build_features
 
 CYCLE_FEATURES = ("cycle_day_sin", "cycle_day_cos", "period_flow", "period_spotting")
 MODEL_VERSION = "healthbench-synthetic-gb-0.1.0"
 
 
 def _estimator(kind: str) -> Pipeline:
-    columns = list(CYCLE_FEATURES if kind == "cycle_logistic" else FEATURE_COLUMNS)
+    if kind == "cycle_logistic":
+        columns = list(CYCLE_FEATURES)
+    elif kind == "gradient_boosting_without_wearables":
+        columns = list(CORE_FEATURE_COLUMNS)
+    elif kind == "gradient_boosting":
+        columns = list(FEATURE_COLUMNS)
+    else:
+        raise ValueError(f"unknown estimator: {kind}")
     transform = ColumnTransformer(
-        [("numeric", SimpleImputer(strategy="median", add_indicator=True), columns)],
+        [
+            (
+                "numeric",
+                SimpleImputer(
+                    strategy="median",
+                    add_indicator=True,
+                    keep_empty_features=True,
+                ),
+                columns,
+            )
+        ],
         remainder="drop",
     )
     if kind == "cycle_logistic":
         model = LogisticRegression(max_iter=1000, class_weight="balanced", random_state=17)
-    elif kind == "gradient_boosting":
+    else:
         model = HistGradientBoostingClassifier(
             max_iter=120,
             max_leaf_nodes=15,
@@ -41,8 +58,6 @@ def _estimator(kind: str) -> Pipeline:
             l2_regularization=0.5,
             random_state=17,
         )
-    else:
-        raise ValueError(f"unknown estimator: {kind}")
     return Pipeline([("prepare", transform), ("model", model)])
 
 
@@ -112,6 +127,7 @@ def _grouped_predictions(frame: pd.DataFrame, folds: int) -> dict[str, np.ndarra
             "previous_day_burden",
             "participant_historical_rate",
             "cycle_logistic",
+            "gradient_boosting_without_wearables",
             "gradient_boosting",
         )
     }
@@ -128,7 +144,11 @@ def _grouped_predictions(frame: pd.DataFrame, folds: int) -> dict[str, np.ndarra
         predictions["participant_historical_rate"][test_positions] = _causal_participant_rate(
             test, prior
         )
-        for name in ("cycle_logistic", "gradient_boosting"):
+        for name in (
+            "cycle_logistic",
+            "gradient_boosting_without_wearables",
+            "gradient_boosting",
+        ):
             predictions[name][test_positions] = _fit_predict(name, train, test)
     return predictions
 
@@ -143,6 +163,7 @@ def _rolling_predictions(
             "previous_day_burden",
             "participant_historical_rate",
             "cycle_logistic",
+            "gradient_boosting_without_wearables",
             "gradient_boosting",
         )
     }
@@ -165,7 +186,11 @@ def _rolling_predictions(
         prediction_parts["participant_historical_rate"].append(
             (prior_sum + cumulative) / (prior_count + offsets)
         )
-        for name in ("cycle_logistic", "gradient_boosting"):
+        for name in (
+            "cycle_logistic",
+            "gradient_boosting_without_wearables",
+            "gradient_boosting",
+        ):
             prediction_parts[name].append(_fit_predict(name, train, test))
 
     combined = pd.concat(test_parts, ignore_index=True)
@@ -235,13 +260,27 @@ def run_benchmark(
         and float(gb["calibration_error"])
         <= min(float(baseline["calibration_error"]) for baseline in baselines)
     )
+    without_wearables = grouped_metrics["gradient_boosting_without_wearables"]
+    improves_discrimination = bool(
+        gb["auroc"] is not None
+        and without_wearables["auroc"] is not None
+        and float(gb["auroc"]) > float(without_wearables["auroc"])
+    )
+    improves_brier = float(gb["brier"]) < float(without_wearables["brier"])
+    wearable_incremental_signal = bool(
+        (improves_discrimination or improves_brier)
+        and float(gb["calibration_error"])
+        <= float(without_wearables["calibration_error"])
+    )
+    sources = sorted(features.get("source", pd.Series(["unknown"])).unique().tolist())
+    non_synthetic = any(source != "synthetic" for source in sources)
 
     return {
-        "benchmark_version": "1.0.0",
+        "benchmark_version": "2.0.0",
         "model_version": MODEL_VERSION,
         "generated_at": datetime.now(UTC).isoformat(),
         "data": {
-            "source": sorted(features.get("source", pd.Series(["unknown"])).unique().tolist()),
+            "source": sources,
             "participants": int(features["participant_id"].nunique()),
             "prediction_rows": int(len(features)),
             "positive_rate": round(float(features["target"].mean()), 6),
@@ -260,10 +299,18 @@ def run_benchmark(
             },
         },
         "predictive_claim_supported": supported,
+        "wearable_incremental_signal": wearable_incremental_signal,
+        "wearable_promotion_eligible": bool(
+            wearable_incremental_signal and non_synthetic
+        ),
         "claim_policy": (
-            "Experimental predictive result"
-            if supported
-            else "Data infrastructure; model remains experimental"
+            "Wearable promotion requires permitted non-synthetic validation"
+            if not non_synthetic
+            else (
+                "Wearable candidate passed the predefined offline gate"
+                if wearable_incremental_signal
+                else "Wearable candidate did not pass the predefined offline gate"
+            )
         ),
         "runtime": {
             "python": platform.python_version(),

@@ -3,19 +3,21 @@ export type PeriodStatus = "none" | "spotting" | "flow";
 export type Confidence = "low" | "medium" | "high";
 
 export interface EnrollRequest {
-  readonly invitation_code: string;
   readonly adult_confirmed: boolean;
   readonly operational_consent: boolean;
-  readonly research_opt_in: boolean;
+  readonly research_consent: boolean;
   readonly consent_version: string;
-  readonly seed_demo_history: boolean;
 }
 
 export interface EnrollResponse {
   readonly access_token: string;
   readonly consent_version: string;
-  readonly research_opt_in: boolean;
-  readonly demo_history_seeded: boolean;
+}
+
+export interface ConsentResponse {
+  readonly consent_current: boolean;
+  readonly consent_version: string;
+  readonly effective_at: string;
 }
 
 export interface CheckInCreate {
@@ -52,16 +54,49 @@ export interface ForecastResponse {
 }
 
 export interface AccountSummary {
-  readonly research_opt_in: boolean;
+  readonly consent_current: boolean;
   readonly consent_version: string;
   readonly checkin_count: number;
   readonly research_record_count: number;
+  readonly wearable_connected: boolean;
+  readonly wearable_platform: WearablePlatform | null;
+  readonly wearable_day_count: number;
+  readonly wearable_last_synced_at: string | null;
 }
 
-export interface ResearchConsentResponse {
-  readonly research_opt_in: boolean;
-  readonly effective_at: string;
-  readonly contributed_records: number;
+export type WearablePlatform = "apple_health" | "health_connect";
+export type HrvMethod = "sdnn" | "rmssd";
+
+export interface WearableDailyRecord {
+  readonly observed_date: string;
+  readonly platform: WearablePlatform;
+  readonly sleep_minutes: number | null;
+  readonly steps: number | null;
+  readonly activity_minutes: number | null;
+  readonly active_energy_kcal: number | null;
+  readonly resting_heart_rate_bpm: number | null;
+  readonly hrv_ms: number | null;
+  readonly hrv_method: HrvMethod | null;
+  readonly respiratory_rate_bpm: number | null;
+  readonly oxygen_saturation_pct: number | null;
+  readonly peripheral_temperature_delta_c: number | null;
+}
+
+export interface WearableSyncRequest {
+  readonly sync_id: string;
+  readonly records: ReadonlyArray<WearableDailyRecord>;
+}
+
+export interface WearableSyncResponse {
+  readonly accepted_days: number;
+  readonly deleted_days: number;
+  readonly duplicate: boolean;
+  readonly last_synced_at: string;
+}
+
+export interface WearableDeleteResponse {
+  readonly deleted_days: number;
+  readonly message: string;
 }
 
 export type Result<T> =

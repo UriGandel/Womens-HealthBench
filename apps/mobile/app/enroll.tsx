@@ -1,9 +1,9 @@
 import { useState } from "react";
 import {
+  Platform,
   StyleSheet,
   Switch,
   Text,
-  TextInput,
   View,
 } from "react-native";
 
@@ -13,7 +13,7 @@ import { Screen } from "@/components/Screen";
 import { useApp } from "@/providers/AppProvider";
 import { colors, radius, type } from "@/theme";
 
-const CONSENT_VERSION = "2026-07-01";
+const CONSENT_VERSION = "2026-07-19-health-v1";
 
 interface ToggleRowProps {
   readonly title: string;
@@ -46,32 +46,26 @@ function ToggleRow({
 
 export default function EnrollScreen(): React.ReactElement {
   const { enrollUser } = useApp();
-  const [code, setCode] = useState("");
   const [adult, setAdult] = useState(false);
   const [operational, setOperational] = useState(false);
   const [research, setResearch] = useState(false);
-  const [demo, setDemo] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const submit = async (): Promise<void> => {
     setError(null);
-    if (code.trim().length < 4) {
-      setError("Enter the invitation code you received.");
-      return;
-    }
-    if (!adult || !operational) {
-      setError("Adult confirmation and operational processing are required to use the alpha.");
+    if (!adult || !operational || !research) {
+      setError(
+        "Adult confirmation, operational processing, and research participation are required.",
+      );
       return;
     }
     setLoading(true);
     const result = await enrollUser({
-      invitation_code: code.trim(),
       adult_confirmed: adult,
       operational_consent: operational,
-      research_opt_in: research,
+      research_consent: research,
       consent_version: CONSENT_VERSION,
-      seed_demo_history: demo,
     });
     if (!result.ok) setError(result.message);
     setLoading(false);
@@ -82,7 +76,7 @@ export default function EnrollScreen(): React.ReactElement {
       <View style={styles.hero}>
         <View style={styles.kickerRow}>
           <View style={styles.signal} />
-          <Text style={styles.kicker}>PRIVATE ALPHA · CONSENT 2026-07-01</Text>
+          <Text style={styles.kicker}>PRIVATE ALPHA · CONSENT HEALTH V1</Text>
         </View>
         <Text style={styles.title}>Tomorrow,{`\n`}gently.</Text>
         <Text style={styles.subtitle}>
@@ -91,26 +85,15 @@ export default function EnrollScreen(): React.ReactElement {
       </View>
 
       <Notice text="Experimental wellness forecast only. It is not a diagnosis or medical advice, and should not delay professional care." />
-
-      <View style={styles.card}>
-        <Text style={styles.sectionTitle}>Your invitation</Text>
-        <TextInput
-          accessibilityLabel="Invitation code"
-          autoCapitalize="characters"
-          autoCorrect={false}
-          placeholder="Enter code"
-          placeholderTextColor={colors.muted}
-          value={code}
-          onChangeText={setCode}
-          style={styles.input}
-        />
-      </View>
+      {Platform.OS === "web" ? (
+        <Notice text="Browser preview: device authentication and health-app imports are unavailable, and local data is erased when this page reloads." />
+      ) : null}
 
       <View style={styles.card}>
         <Text style={styles.sectionTitle}>Before we begin</Text>
         <ToggleRow
           title="I confirm I’m 18 or older"
-          detail="This internal alpha is for invited adults."
+          detail="This internal alpha is for adults."
           value={adult}
           onValueChange={setAdult}
         />
@@ -124,31 +107,31 @@ export default function EnrollScreen(): React.ReactElement {
       </View>
 
       <View style={styles.researchCard}>
-        <Text style={styles.optional}>OPTIONAL RESEARCH</Text>
+        <Text style={styles.required}>REQUIRED RESEARCH PARTICIPATION</Text>
         <ToggleRow
           title="Contribute pseudonymous records"
-          detail="Separate from app access. You can withdraw later and your research rows will be removed."
+          detail="Every accepted check-in and any health-app summaries you choose to import contribute to forecasting evaluation and the research dataset. Delete your account at any time to leave and remove all records."
           value={research}
           onValueChange={setResearch}
         />
         <Text style={styles.finePrint}>
-          Records are pseudonymous, not anonymous. They contain structured daily measurements—never free text, location, contacts, or ad identifiers.
+          Records are pseudonymous, not anonymous. Imported health data is
+          retained as daily summaries until you disconnect it or delete your
+          account. We never import raw samples, routes, location, device IDs,
+          source-app IDs, or reproductive and clinical records.
         </Text>
       </View>
 
-      <View style={styles.card}>
-        <ToggleRow
-          title="Load a seven-day demo"
-          detail="Preloads synthetic history so the forecast is ready for a hackathon demonstration."
-          value={demo}
-          onValueChange={setDemo}
-        />
-      </View>
-
       {error ? <Notice text={error} tone="warning" /> : null}
-      <Button label="Enter the private alpha" onPress={() => void submit()} loading={loading} />
+      <Button
+        label={Platform.OS === "web" ? "Join browser preview" : "Authenticate and join"}
+        onPress={() => void submit()}
+        loading={loading}
+      />
       <Text style={styles.footer}>
-        By continuing, you accept consent version {CONSENT_VERSION}. Transport and local queued records are encrypted.
+        {Platform.OS === "web"
+          ? `By continuing, you accept consent version ${CONSENT_VERSION}. Transport uses the configured API connection; local preview data is not persisted.`
+          : `By continuing, you accept consent version ${CONSENT_VERSION}. Transport and local queued records are encrypted.`}
       </Text>
     </Screen>
   );
@@ -214,24 +197,12 @@ const styles = StyleSheet.create({
     fontSize: 21,
     fontWeight: "600",
   },
-  optional: {
+  required: {
     color: colors.plum,
     fontFamily: type.mono,
     fontSize: 10,
     fontWeight: "700",
     letterSpacing: 1.2,
-  },
-  input: {
-    minHeight: 54,
-    borderRadius: radius.medium,
-    backgroundColor: colors.paper,
-    borderWidth: 1,
-    borderColor: colors.line,
-    color: colors.ink,
-    fontFamily: type.mono,
-    fontSize: 18,
-    paddingHorizontal: 16,
-    letterSpacing: 1,
   },
   toggleRow: {
     flexDirection: "row",

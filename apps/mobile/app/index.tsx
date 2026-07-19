@@ -26,7 +26,7 @@ export default function IndexScreen(): React.ReactElement {
       </View>
     );
   }
-  return <Redirect href={token ? "/(tabs)" : "/enroll"} />;
+  return <Redirect href={token ? "/lock" : "/enroll"} />;
 }
 
 const styles = StyleSheet.create({

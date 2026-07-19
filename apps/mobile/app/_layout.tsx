@@ -17,6 +17,9 @@ export default function RootLayout(): React.ReactElement {
       >
         <Stack.Screen name="index" />
         <Stack.Screen name="enroll" />
+        <Stack.Screen name="lock" />
+        <Stack.Screen name="consent" />
+        <Stack.Screen name="health-data" />
         <Stack.Screen name="(tabs)" />
       </Stack>
     </AppProvider>

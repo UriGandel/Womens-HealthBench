@@ -1,18 +1,23 @@
 import type {
   AccountSummary,
   CheckInCreate,
+  ConsentResponse,
   EnrollRequest,
   EnrollResponse,
   ForecastResponse,
-  ResearchConsentResponse,
   Result,
+  WearableDeleteResponse,
+  WearableSyncRequest,
+  WearableSyncResponse,
 } from "@/types";
 import {
   accountSummarySchema,
+  consentResponseSchema,
   enrollResponseSchema,
   forecastResponseSchema,
   messageResponseSchema,
-  researchConsentResponseSchema,
+  wearableDeleteResponseSchema,
+  wearableSyncResponseSchema,
 } from "@/validation";
 import type { ZodType } from "zod";
 import { z } from "zod";
@@ -101,23 +106,44 @@ export function getAccount(token: string): Promise<Result<AccountSummary>> {
   return request<AccountSummary>("/v1/account", { method: "GET" }, accountSummarySchema, token);
 }
 
-export function updateResearchConsent(
+export function acceptConsent(
   token: string,
-  researchOptIn: boolean,
   consentVersion: string,
-  contributeExisting: boolean,
-): Promise<Result<ResearchConsentResponse>> {
-  return request<ResearchConsentResponse>(
-    "/v1/research-consent",
+): Promise<Result<ConsentResponse>> {
+  return request<ConsentResponse>(
+    "/v1/consent",
     {
       method: "PUT",
       body: JSON.stringify({
-        research_opt_in: researchOptIn,
+        operational_consent: true,
+        research_consent: true,
         consent_version: consentVersion,
-        contribute_existing: contributeExisting,
       }),
     },
-    researchConsentResponseSchema,
+    consentResponseSchema,
+    token,
+  );
+}
+
+export function sendWearableDays(
+  token: string,
+  payload: WearableSyncRequest,
+): Promise<Result<WearableSyncResponse>> {
+  return request<WearableSyncResponse>(
+    "/v1/wearable-days:sync",
+    { method: "POST", body: JSON.stringify(payload) },
+    wearableSyncResponseSchema,
+    token,
+  );
+}
+
+export function deleteWearableData(
+  token: string,
+): Promise<Result<WearableDeleteResponse>> {
+  return request<WearableDeleteResponse>(
+    "/v1/wearable-data",
+    { method: "DELETE" },
+    wearableDeleteResponseSchema,
     token,
   );
 }

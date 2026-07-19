@@ -6,8 +6,9 @@ wellness tool, not a diagnostic product.
 
 The repository contains:
 
-- `apps/mobile`: Expo React Native application for invitation, consent, daily
-  check-ins, forecasts, and privacy controls.
+- `apps/mobile`: native Expo React Native application for enrollment, consent,
+  daily check-ins, read-only Apple Health/Health Connect imports, forecasts,
+  and privacy controls.
 - `services/api`: FastAPI service with PostgreSQL/SQLite support, pseudonymous
   research storage, and an administrator-only export command.
 - `benchmark`: reproducible synthetic benchmark plus an adapter contract for
@@ -23,10 +24,10 @@ The repository contains:
 cd services/api
 python3 -m venv .venv
 .venv/bin/pip install -e ".[dev]"
-DEMO_MODE=true DEMO_INVITE_CODE=ALPHA-2026 .venv/bin/uvicorn app.main:app --reload
+.venv/bin/uvicorn app.main:app --reload
 ```
 
-SQLite is used by default for a zero-configuration demo. For PostgreSQL:
+SQLite is used by default for local development with synthetic data only. For PostgreSQL:
 
 ```bash
 docker compose up -d db
@@ -44,11 +45,12 @@ npm install
 EXPO_PUBLIC_API_URL=http://127.0.0.1:8000 npm start
 ```
 
-Use invitation code `ALPHA-2026` in demo mode. Android emulators reach a host
-API through `http://10.0.2.2:8000`; set `EXPO_PUBLIC_API_URL` accordingly.
+Android emulators reach a host API through `http://10.0.2.2:8000`; set
+`EXPO_PUBLIC_API_URL` accordingly.
 
-The encrypted offline queue uses SQLCipher and therefore requires an Expo
-development build rather than Expo Go:
+The encrypted offline queues and local HealthKit/Health Connect module require
+an Expo development build rather than Expo Go. Device authentication also
+requires a configured system passcode, Face ID, or fingerprint:
 
 ```bash
 npx expo prebuild
@@ -56,6 +58,16 @@ npm run ios
 # or
 npm run android
 ```
+
+For a browser-only preview of the non-native flows:
+
+```bash
+EXPO_PUBLIC_API_URL=http://127.0.0.1:8000 npm run web
+```
+
+The browser preview skips device authentication, disables Apple Health and
+Health Connect imports, and keeps tokens and queued records in volatile memory
+that is cleared on reload.
 
 ### Benchmark
 
@@ -72,17 +84,22 @@ mcPHASES records are never committed or redistributed.
 
 ## Safety boundary
 
-- Operational processing and optional research contribution use separate
-  consent controls.
+- Operational processing and pseudonymous research contribution are both
+  explicit conditions of participation.
 - The API never logs request bodies or authorization headers.
 - Research rows use a random research identifier and relative `day_in_study`.
-- Withdrawal deletes pseudonymous research rows; account deletion deletes all
-  account-linked data.
+- Wearable imports contain only daily aggregates; raw samples, timestamps,
+  routes, locations, source apps, and device identifiers are excluded.
+- Deleting an account ends participation and deletes operational check-ins,
+  wearable summaries, pseudonymous research rows, and the account mapping.
 - No tester or mcPHASES record-level data belongs in the open-source artifact.
 
-SQLite API mode and the volatile web adapter are development/demo tools and
-must not hold real tester data. Before inviting testers, follow
+SQLite API mode is a development tool and must not hold real tester data. The
+production client remains native; the volatile web adapter is for local testing
+only.
+Before inviting testers, follow
 [docs/deployment.md](docs/deployment.md) and provision encrypted PostgreSQL
 storage with TLS.
 
-See [docs/privacy.md](docs/privacy.md) and [MODEL_CARD.md](MODEL_CARD.md).
+See [docs/health-data.md](docs/health-data.md),
+[docs/privacy.md](docs/privacy.md), and [MODEL_CARD.md](MODEL_CARD.md).

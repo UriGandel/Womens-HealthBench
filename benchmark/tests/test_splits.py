@@ -38,8 +38,11 @@ def test_report_contains_predefined_models_and_metrics() -> None:
         "previous_day_burden",
         "participant_historical_rate",
         "cycle_logistic",
+        "gradient_boosting_without_wearables",
         "gradient_boosting",
     }
     assert {"auroc", "auprc", "brier", "calibration_error"} <= set(
         models["gradient_boosting"]
     )
+    assert report["wearable_promotion_eligible"] is False
+    assert "non-synthetic" in report["claim_policy"]

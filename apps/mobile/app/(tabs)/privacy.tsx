@@ -1,8 +1,8 @@
 import { useState } from "react";
+import { useRouter } from "expo-router";
 import {
   Alert,
   StyleSheet,
-  Switch,
   Text,
   View,
 } from "react-native";
@@ -18,26 +18,11 @@ export default function PrivacyScreen(): React.ReactElement {
     account,
     pendingCount,
     isOnline,
-    setResearchConsent,
     deleteAccount,
   } = useApp();
-  const [updating, setUpdating] = useState(false);
+  const router = useRouter();
   const [deleting, setDeleting] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
-
-  const changeResearchConsent = async (enabled: boolean): Promise<void> => {
-    setUpdating(true);
-    setMessage(null);
-    const result = await setResearchConsent(enabled, enabled);
-    setUpdating(false);
-    setMessage(
-      result.ok
-        ? enabled
-          ? "Research contribution is on. Existing eligible check-ins were included."
-          : "Research contribution is off. Your research rows were withdrawn."
-        : result.message,
-    );
-  };
 
   const confirmDelete = (): void => {
     Alert.alert(
@@ -67,34 +52,20 @@ export default function PrivacyScreen(): React.ReactElement {
         <Text style={styles.eyebrow}>PRIVACY CONTROL</Text>
         <Text style={styles.title}>Your data stays yours.</Text>
         <Text style={styles.subtitle}>
-          App use and research contribution are separate choices.
+          Research participation continues while your account is active.
         </Text>
       </View>
 
       <View style={styles.researchCard}>
-        <View style={styles.toggleRow}>
-          <View style={styles.toggleCopy}>
-            <Text style={styles.sectionTitle}>Research contribution</Text>
-            <Text style={styles.detail}>
-              Share pseudonymous, structured daily records with the research dataset.
-            </Text>
-          </View>
-          <Switch
-            accessibilityLabel="Research contribution"
-            disabled={updating || !isOnline || !account}
-            value={account?.research_opt_in ?? false}
-            onValueChange={(value) => void changeResearchConsent(value)}
-            trackColor={{ false: colors.line, true: colors.mineral }}
-            thumbColor={colors.white}
-          />
-        </View>
+        <Text style={styles.sectionTitle}>Research contribution</Text>
+        <Text style={styles.detail}>
+          Every accepted check-in contributes a pseudonymous, structured record to the research dataset.
+        </Text>
         <View style={styles.badge}>
-          <Text style={styles.badgeText}>
-            {account?.research_opt_in ? "OPTED IN" : "NOT CONTRIBUTING"}
-          </Text>
+          <Text style={styles.badgeText}>ACTIVE WHILE PARTICIPATING</Text>
         </View>
         <Text style={styles.finePrint}>
-          Pseudonymous does not mean anonymous. Turning this off removes contributed research rows while preserving operational check-ins needed for your app.
+          Pseudonymous does not mean anonymous. Deleting your account ends participation and removes operational check-ins, contributed research rows, and queued entries from this device.
         </Text>
       </View>
 
@@ -105,6 +76,20 @@ export default function PrivacyScreen(): React.ReactElement {
         />
       ) : null}
       {message ? <Notice text={message} /> : null}
+
+      <View style={styles.card}>
+        <Text style={styles.cardLabel}>WATCH & HEALTH APP</Text>
+        <Text style={styles.listText}>
+          {account?.wearable_connected
+            ? `${account.wearable_day_count} days of daily health summaries are connected.`
+            : "Optionally connect Apple Health or Android Health Connect for daily watch summaries."}
+        </Text>
+        <Button
+          label={account?.wearable_connected ? "Manage health data" : "Connect health data"}
+          variant="secondary"
+          onPress={() => router.push("/health-data")}
+        />
+      </View>
 
       <View style={styles.card}>
         <Text style={styles.cardLabel}>YOUR RECORDS</Text>
@@ -201,15 +186,6 @@ const styles = StyleSheet.create({
     borderColor: colors.line,
     padding: 18,
     gap: 14,
-  },
-  toggleRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 16,
-  },
-  toggleCopy: {
-    flex: 1,
-    gap: 5,
   },
   sectionTitle: {
     color: colors.ink,
