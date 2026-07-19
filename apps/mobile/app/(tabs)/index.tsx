@@ -84,7 +84,7 @@ export default function ForecastScreen(): React.ReactElement {
           <Text style={styles.instrumentDetail}>
             {checkedInToday
               ? "Come back tomorrow for the next one."
-              : "It estimates tomorrow's chance of a high-symptom day."}
+              : "This forecast will predict tomorrow's chance of a high-symptom day."}
           </Text>
         ) : null}
 
